@@ -1,0 +1,350 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+
+model User {
+  id String @id @default(uuid())
+
+  username String  @unique
+  password String?
+
+  role Role @default(USER)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  DOMESTIC_PARTNERSHIP
+}
+
+enum PaymentFrequency {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum LoanStatus {
+  PENDING    // Esperando aprobación
+  ACTIVE     // Préstamo activo
+  COMPLETED  // Préstamo pagado completamente
+  DEFAULTED  // Préstamo en mora
+  CANCELLED  // Préstamo cancelado
+}
+
+enum InterestType {
+  FIXED      // Interés fijo por cuota
+  DECREASING // Interés decreciente sobre saldo
+}
+
+enum AccountType {
+  BANCARIA    // Cuenta bancaria
+  EFECTIVO    // Efectivo
+  INVERSIONES // Cuenta de inversiones
+  CREDITO     // Línea de crédito
+  OTROS       // Otros tipos
+}
+
+enum AccountSubtype {
+  CORRIENTE       // Cuenta corriente
+  AHORROS         // Cuenta de ahorros
+  VISTA           // Cuenta vista
+  PLAZO_FIJO      // Depósito a plazo fijo
+  NOT_APPLICABLE  // No aplica
+}
+
+enum ExpenseCategory {
+  SERVICIOS_PUBLICOS    // Servicios públicos (agua, luz, gas, internet)
+  ARRIENDO              // Arriendo y gastos de oficina
+  NOMINA                // Nómina y gastos de personal
+  MARKETING             // Marketing y publicidad
+  TRANSPORTE            // Transporte y combustible
+  SUMINISTROS           // Suministros de oficina
+  TECNOLOGIA            // Tecnología y software
+  MANTENIMIENTO         // Mantenimiento y reparaciones
+  SEGUROS               // Seguros
+  IMPUESTOS             // Impuestos y tasas
+  LEGAL                 // Gastos legales y contables
+  ALIMENTACION          // Alimentación y entretenimiento
+  OTROS                 // Otros gastos
+}
+
+model Client {
+  id                String             @id @default(uuid())
+  // Personal Info
+  fullName          String
+  identification    Int                @unique
+  maritalStatus     MaritalStatus
+  nationality       String
+  dateOfBirth       DateTime
+  placeOfBirth      String
+  // Contact Info
+  address           String?
+  phone             String?
+  cellphone         String?
+  // Labor Info
+  occupation        String?
+  companyName       String?
+  currentPosition   String?
+  companyTenure     Int?
+  monthlyIncome     Float?
+  workSchedule      String?
+  workplace         String?
+  // Status
+  status            ClientStatus       @default(ACTIVE)
+  // Relationships
+  loans             Loan[]            // Relación con préstamos
+
+
+  referenceContact ReferenceContact[]
+
+  documents         Document[]
+
+  isDisallowed Boolean   @default(false)
+  // Timestamps
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+}
+
+model ReferenceContact {
+  id           String   @id @default(uuid())
+  name         String
+  relationship String
+  phone        String?
+  email        String?
+
+  // Relationships
+  client    Client?      @relation(fields: [clientId], references: [id])
+  clientId  String?
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt  
+  deletedAt    DateTime?
+
+  @@index([clientId])
+}
+
+enum DocumentType {
+  ID_CARD // Cédula
+  UTILITY_BILL // Recibos de pago
+}
+
+
+
+model Document {
+  id        String       @id @default(uuid())
+  type      DocumentType
+  fileUrl   String
+  // Relationships
+  client    Client?      @relation(fields: [clientId], references: [id])
+  clientId  String?
+
+  loan      Loan?        @relation(fields: [loanId], references: [id])
+  loanId    String?
+
+  // Timestamps
+  createdAt DateTime     @default(now())
+
+  @@index([clientId])
+  @@index([loanId])
+}
+
+model Loan {
+  id                   String           @id @default(uuid())
+  client               Client           @relation(fields: [clientId], references: [id])
+  clientId             String
+  loanNumber           String           @unique
+  // Loan Details
+  startDate            DateTime
+  endDate              DateTime
+  totalAmount          Float
+  installments         Int              // Número total de cuotas
+  remainingInstallments Int             // Cuotas pendientes
+  balance              Float            // Saldo pendiente
+  interestRate         Float            // Tasa de interés
+  interestType         InterestType     @default(FIXED) // Tipo de interés
+  paymentFrequency     PaymentFrequency // Frecuencia de pagos
+  feeAmount            Float            // Monto de la cuota base (sin intereses)
+  fixedInterestAmount  Float?           // Monto fijo de interés por cuota (para FIXED)
+  currentInstallmentAmount Float        // Monto de la cuota actual (incluye saldos pendientes)
+  pendingInterest      Float            @default(0) // Interés pendiente acumulado
+  status               LoanStatus       @default(PENDING)
+  
+  // Payment Tracking
+  lastPaymentDate      DateTime?
+  nextPaymentDate      DateTime?        // Fecha próximo pago
+  payments             Payment[]        // Historial de pagos
+  
+  // Account Relations
+  loanAccounts         LoanAccount[]    // Cuentas de donde sale el dinero del préstamo
+  
+  // Documents and Changes
+  documents            Document[]       // Documentos relacionados al préstamo
+  frequencyChanges     PaymentFrequencyChange[]
+
+  // Audit
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  approvedAt           DateTime?        // Fecha de aprobación
+  approvedBy           String?          // Usuario que aprobó
+  notes                String?          // Notas o comentarios
+
+  @@index([clientId])
+}
+
+model PaymentFrequencyChange {
+  id              String           @id @default(uuid())
+  loan            Loan             @relation(fields: [loanId], references: [id])
+  loanId          String
+  
+  previousFrequency PaymentFrequency
+  newFrequency     PaymentFrequency
+  changeDate       DateTime         @default(now())
+  effectiveDate    DateTime         // Fecha desde cuando aplica el cambio
+  reason           String?          // Razón del cambio
+  
+  // Recalculation details
+  previousEndDate   DateTime
+  newEndDate        DateTime
+  previousFeeAmount Float
+  newFeeAmount      Float
+  
+  // Audit
+  changedBy        String?          // Usuario que realizó el cambio
+  createdAt        DateTime         @default(now())
+
+  @@index([loanId])
+}
+
+model Payment {
+  id              String    @id @default(uuid())
+  loan            Loan      @relation(fields: [loanId], references: [id])
+  loanId          String
+  
+  paymentDate     DateTime
+  amount          Float     // Monto total pagado
+  capitalAmount   Float     // Monto aplicado al capital
+  interestAmount  Float     // Monto de intereses
+  installmentNumber Int     // Número de cuota
+  
+  notes           String?   // Notas o comentarios
+  
+  // Audit
+  createdAt       DateTime  @default(now())
+  createdBy       String?   // Usuario que registró el pago
+
+  @@index([loanId])
+  @@index([paymentDate])
+}
+
+model Account {
+  id            String         @id @default(uuid())
+  name          String         // Nombre de la cuenta (ej: "Banco XYZ - Cuenta Corriente")
+  number        String         // Número de cuenta
+  type          AccountType    // Tipo de cuenta
+  subtype       AccountSubtype @default(NOT_APPLICABLE) // Subtipo de cuenta
+
+  accountHolder String?        // Nombre del titular de la cuenta
+  balance       Float          // Saldo actual de la cuenta
+  description   String?        // Descripción opcional
+  
+  // Audit
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+
+  isActive      Boolean        @default(true)
+
+  // Relaciones
+  loanAccounts  LoanAccount[]  // Relación con préstamos a través de tabla intermedia
+  expenseAccounts ExpenseAccount[] // Relación con gastos a través de tabla intermedia
+
+  @@index([name])
+  @@index([type])
+}
+
+model LoanAccount {
+  id        String   @id @default(uuid())
+  loan      Loan     @relation(fields: [loanId], references: [id])
+  loanId    String
+  account   Account  @relation(fields: [accountId], references: [id])
+  accountId String
+  
+  amount    Float    // Monto que sale de esta cuenta para el préstamo
+  
+  // Audit
+  createdAt DateTime @default(now())
+
+  @@unique([loanId, accountId]) // Un préstamo no puede usar la misma cuenta dos veces
+  @@index([loanId])
+  @@index([accountId])
+}
+
+model Expense {
+  id            String          @id @default(uuid())
+  name          String          // Nombre del gasto (ej: "Factura de electricidad - Enero 2024")
+  description   String?         // Descripción opcional del gasto
+  category      ExpenseCategory // Categoría del gasto
+  amount        Float           // Monto total del gasto
+  expenseDate   DateTime        // Fecha del gasto
+  
+  // Account Relations
+  expenseAccounts ExpenseAccount[] // Cuentas de donde sale el dinero para el gasto
+  
+  // Audit
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  createdBy     String?         // Usuario que registró el gasto
+  notes         String?         // Notas adicionales
+
+  @@index([category])
+  @@index([expenseDate])
+}
+
+model ExpenseAccount {
+  id        String   @id @default(uuid())
+  expense   Expense  @relation(fields: [expenseId], references: [id])
+  expenseId String
+  account   Account  @relation(fields: [accountId], references: [id])
+  accountId String
+  
+  amount    Float    // Monto que sale de esta cuenta para el gasto
+  
+  // Audit
+  createdAt DateTime @default(now())
+
+  @@unique([expenseId, accountId]) // Un gasto no puede usar la misma cuenta dos veces
+  @@index([expenseId])
+  @@index([accountId])
+}
