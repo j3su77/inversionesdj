@@ -24,7 +24,7 @@ export default async function LoginPage() {
           </div>
         </div>
       </div>
-      <div className="container w-full pt-14 h-fit mx-auto max-w-[400px]">
+      <div className="container w-full pt-14 h-fit mx-auto max-w-[500px]">
         <LoginForm />
       </div>
     </div>
