@@ -1,4 +1,4 @@
- "use server";
+"use server";
 import { db } from "@/lib/db";
 import {  Prisma } from "@prisma/client";
 import { startOfDay, endOfDay } from "date-fns";
@@ -153,5 +153,140 @@ export const getLoanById = async (loanId: string) => {
   } catch (error) {
     console.error("[GET_LOAN_BY_ID]", error);
     throw new Error("Error al obtener el préstamo");
+  }
+};
+
+export const getLoanStats = async () => {
+  try {
+    const today = new Date();
+    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+
+    // Obtener todos los préstamos activos
+    const activeLoans = await db.loan.findMany({
+      where: {
+        status: "ACTIVE",
+      },
+      select: {
+        id: true,
+        nextPaymentDate: true,
+        balance: true,
+        totalAmount: true,
+        client: {
+          select: {
+            fullName: true,
+          },
+        },
+      },
+    });
+
+    // Calcular estadísticas
+    const totalActiveLoans = activeLoans.length;
+    
+    // Préstamos en mora (fecha de pago vencida)
+    const overdueLoans = activeLoans.filter(loan => 
+      loan.nextPaymentDate && loan.nextPaymentDate < startOfToday
+    );
+    
+    // Préstamos al día (fecha de pago hoy o futura)
+    const currentLoans = activeLoans.filter(loan => 
+      loan.nextPaymentDate && loan.nextPaymentDate >= startOfToday
+    );
+
+    // Préstamos que vencen hoy
+    const dueTodayLoans = activeLoans.filter(loan => {
+      if (!loan.nextPaymentDate) return false;
+      const paymentDate = new Date(loan.nextPaymentDate);
+      return paymentDate.toDateString() === today.toDateString();
+    });
+
+    // Calcular montos totales
+    const totalActiveAmount = activeLoans.reduce((sum, loan) => sum + loan.totalAmount, 0);
+    const totalPendingAmount = activeLoans.reduce((sum, loan) => sum + loan.balance, 0);
+    const overdueAmount = overdueLoans.reduce((sum, loan) => sum + loan.balance, 0);
+
+    return {
+      success: true,
+      data: {
+        totalActiveLoans,
+        currentLoans: currentLoans.length,
+        overdueLoans: overdueLoans.length,
+        dueTodayLoans: dueTodayLoans.length,
+        totalActiveAmount,
+        totalPendingAmount,
+        overdueAmount,
+        overduePercentage: totalActiveLoans > 0 ? (overdueLoans.length / totalActiveLoans) * 100 : 0,
+      },
+    };
+  } catch (error) {
+    console.error("[GET_LOAN_STATS]", error);
+    return {
+      success: false,
+      error: "Error al obtener estadísticas de préstamos",
+    };
+  }
+};
+
+export const calculateNextPaymentDate = async (loanId: string, currentPaymentDate: Date) => {
+  try {
+    // Obtener el préstamo y sus cambios de frecuencia
+    const loan = await db.loan.findUnique({
+      where: { id: loanId },
+      select: {
+        paymentFrequency: true,
+        startDate: true,
+      },
+    });
+
+    if (!loan) {
+      throw new Error("Préstamo no encontrado");
+    }
+
+    // Obtener el último cambio de frecuencia activo
+    const lastFrequencyChange = await db.paymentFrequencyChange.findFirst({
+      where: {
+        loanId,
+        effectiveDate: {
+          lte: currentPaymentDate,
+        },
+      },
+      orderBy: {
+        effectiveDate: "desc",
+      },
+    });
+
+    // Determinar la frecuencia actual
+    const currentFrequency = lastFrequencyChange?.newFrequency || loan.paymentFrequency;
+
+    // Calcular la próxima fecha de pago
+    const nextPaymentDate = new Date(currentPaymentDate);
+
+    switch (currentFrequency) {
+      case "DAILY":
+        nextPaymentDate.setDate(nextPaymentDate.getDate() + 1);
+        break;
+      case "WEEKLY":
+        nextPaymentDate.setDate(nextPaymentDate.getDate() + 7);
+        break;
+      case "BIWEEKLY":
+        nextPaymentDate.setDate(nextPaymentDate.getDate() + 15);
+        break;
+      case "MONTHLY":
+        nextPaymentDate.setMonth(nextPaymentDate.getMonth() + 1);
+        break;
+      default:
+        throw new Error("Frecuencia de pago no válida");
+    }
+
+    return {
+      success: true,
+      nextPaymentDate,
+      currentFrequency,
+    };
+  } catch (error) {
+    console.error("[CALCULATE_NEXT_PAYMENT_DATE]", error);
+    return {
+      success: false,
+      error: "Error al calcular la próxima fecha de pago",
+    };
   }
 };

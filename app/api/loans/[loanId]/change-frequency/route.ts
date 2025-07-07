@@ -9,7 +9,7 @@ export async function POST(
   try {
     const { loanId } = await params
     const body = await req.json()
-    const { newFrequency, effectiveDate, reason, changedBy } = body
+    const { newFrequency, effectiveDate, nextPaymentDate, reason, changedBy } = body
 
     // Obtener el préstamo actual
     const loan = await prisma.loan.findUnique({
@@ -54,6 +54,9 @@ export async function POST(
       case "MONTHLY":
         newEndDate = addMonths(newEndDate, loan.remainingInstallments)
         break
+      case "QUARTERLY":
+        newEndDate = addMonths(newEndDate, loan.remainingInstallments * 3)
+        break
     }
 
     // Actualizar el préstamo y registrar el cambio en una transacción
@@ -81,6 +84,7 @@ export async function POST(
           paymentFrequency: newFrequency,
           endDate: newEndDate,
           feeAmount: newFeeAmount,
+          nextPaymentDate: new Date(nextPaymentDate),
           updatedAt: new Date(),
         },
       })

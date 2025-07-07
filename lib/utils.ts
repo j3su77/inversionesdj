@@ -30,6 +30,8 @@ export const getPaymentFrequencyLabel = (frequency: string) => {
       return "Quincenal";
     case "MONTHLY":
       return "Mensual";
+    case "QUARTERLY":
+      return "Trimestral";
     default:
       return frequency;
   }

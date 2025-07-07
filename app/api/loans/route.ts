@@ -39,8 +39,11 @@ export async function POST(req: Request) {
             )
         }
 
-        // Calcular fecha de finalización y montos
+        // Calcular la fecha de finalización basada en la frecuencia de pagos
         let endDate = new Date(startDate)
+        
+        // Calcular la fecha del próximo pago basándose en la frecuencia
+        let nextPaymentDate = new Date(startDate)
         
         // El monto de la cuota base (capital) es el mismo para ambos tipos
         const baseFeeAmount = totalAmount / installments
@@ -66,15 +69,23 @@ export async function POST(req: Request) {
         switch (paymentFrequency) {
             case "DAILY":
                 endDate = addDays(endDate, installments)
+                nextPaymentDate = addDays(nextPaymentDate, 1)
                 break
             case "WEEKLY":
                 endDate = addWeeks(endDate, installments)
+                nextPaymentDate = addWeeks(nextPaymentDate, 1)
                 break
             case "BIWEEKLY":
                 endDate = addDays(endDate, installments * 15)
+                nextPaymentDate = addDays(nextPaymentDate, 15)
                 break
             case "MONTHLY":
                 endDate = addMonths(endDate, installments)
+                nextPaymentDate = addMonths(nextPaymentDate, 1)
+                break
+            case "QUARTERLY":
+                endDate = addMonths(endDate, installments * 3)
+                nextPaymentDate = addMonths(nextPaymentDate, 3)
                 break
         }
 
@@ -133,6 +144,7 @@ export async function POST(req: Request) {
                     fixedInterestAmount,
                     startDate: new Date(startDate),
                     endDate,
+                    nextPaymentDate,
                     notes,
                     status: "PENDING",
                     currentInstallmentAmount: totalFeeAmount,

@@ -16,7 +16,7 @@ export default async function DashboardLayout({
 
   return (
     <Providers>
-      <main className="flex-1 overflow-auto w-full">{children}</main>
+      <main className="overflow-auto w-full border-none ">{children}</main>
     </Providers>
   );
 }

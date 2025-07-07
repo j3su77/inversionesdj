@@ -48,21 +48,21 @@ export const Providers = ({ children }: { children: React.ReactNode }) => {
       authenticator={authenticator}
     >
       <SidebarProvider>
-        <div className="flex h-screen overflow-hidden w-full">
+        <div className="flex h-screen overflow-hidden w-full p-0">
           <AppSidebar />
-          <SidebarInset className="flex flex-col flex-1 overflow-hidden w-full">
-            <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4 bg-white rounded-md shadow-sm mt-2 border mx-2">
+          <SidebarInset className="flex flex-col flex-1 overflow-hidden w-full p-0 border-none">
+            <header className="sticky top-0 flex h-16 shrink-0 items-center gap-2 border-b px-4 bg-white rounded-md shadow-sm mt-2 border mx-2">
               <SidebarTrigger className="-ml-1" />
               <div className="flex-1 h-full flex justify-center items-center">
-                <ClientSearch
-                  onClientSelect={selectedClient}
-                />
+                <ClientSearch onClientSelect={selectedClient} />
               </div>
               <Separator orientation="vertical" className="mr-2 h-4" />
               <ModalLogout />
             </header>
-            <Separator orientation="horizontal" className="mb-2" />
-            {children}
+           
+            <div className="flex-1 w-full mt-2 lg:pr-2 lg:mr-2 overflow-y-auto pb-8 mb-4">
+              {children}
+            </div>
           </SidebarInset>
         </div>
       </SidebarProvider>

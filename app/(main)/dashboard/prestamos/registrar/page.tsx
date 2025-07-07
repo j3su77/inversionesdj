@@ -54,7 +54,7 @@ function RegistrarPrestamo() {
   // );
 
   return (
-    <div className="mx-auto p-6">
+    <div className="mx-auto h-full p-6">
       <div className="flex items-center justify-between mb-8">
         <div className="space-y-1">
           <TitlePage text="Registrar Préstamo" icon={UserPlus} />
@@ -70,7 +70,7 @@ function RegistrarPrestamo() {
         </Button>
       </div>
 
-      <Card>
+      <Card className="">
         <CardHeader>
           <CardTitle>Seleccionar Cliente</CardTitle>
           <CardDescription>
@@ -83,7 +83,7 @@ function RegistrarPrestamo() {
             </Link>
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-4 justify-start items-start h-full min-h-[200px]">
           {client ? (
             <div className="flex flex-col gap-4 justify-start items-start">
               <Button variant="outline" size="sm" onClick={cleanClient}>
@@ -99,7 +99,7 @@ function RegistrarPrestamo() {
       </Card>
 
       {client && (
-        <div className="mt-8">
+        <div className="mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Detalles del Préstamo</CardTitle>

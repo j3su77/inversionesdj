@@ -10,7 +10,7 @@ export const ModalLogout = () => {
     <SimpleModal
       title="¿Estás seguro de cerrar sesión?"
       textBtn="Salir"
-      btnClass="px-4 py-2 bg-red-500 rounded hover:bg-red-600"
+      btnClass="px-4 py-2 rounded hover:bg-red-600"
       onAccept={() => onAccept()}
       large={false}
     >

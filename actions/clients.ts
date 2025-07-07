@@ -151,3 +151,80 @@ export const getClientsByStatus = async (status: ClientStatusFilter): Promise<Cl
         }
     });
 };
+
+export const getClientsWithHighestDebt = async (limit: number = 10) => {
+    const clients = await db.client.findMany({
+        where: {
+            deletedAt: null,
+            loans: {
+                some: {
+                    status: { in: [LoanStatus.ACTIVE, LoanStatus.PENDING] },
+                    balance: { gt: 0 }
+                }
+            }
+        },
+        include: {
+            loans: {
+                where: {
+                    status: { in: [LoanStatus.ACTIVE, LoanStatus.PENDING] },
+                    balance: { gt: 0 }
+                },
+                select: {
+                    id: true,
+                    balance: true,
+                    totalAmount: true,
+                    nextPaymentDate: true,
+                    paymentFrequency: true,
+                    currentInstallmentAmount: true,
+                }
+            }
+        }
+    });
+
+    // Calcular la deuda total de cada cliente y ordenar
+    const clientsWithDebt = clients.map(client => {
+        const totalDebt = client.loans.reduce((sum, loan) => sum + loan.balance, 0);
+        const totalLoans = client.loans.length;
+        const nextPaymentDate = client.loans.reduce((earliest, loan) => {
+            if (!loan.nextPaymentDate) return earliest;
+            if (!earliest) return loan.nextPaymentDate;
+            return loan.nextPaymentDate < earliest ? loan.nextPaymentDate : earliest;
+        }, null as Date | null);
+
+        return {
+            id: client.id,
+            fullName: client.fullName,
+            identification: client.identification,
+            totalDebt,
+            totalLoans,
+            nextPaymentDate,
+            loans: client.loans
+        };
+    });
+
+    // Ordenar por deuda total (mayor a menor) y limitar resultados
+    return clientsWithDebt
+        .sort((a, b) => b.totalDebt - a.totalDebt)
+        .slice(0, limit);
+};
+
+export const updateClientStatus = async (clientId: string, isDisallowed: boolean) => {
+    try {
+        const updatedClient = await db.client.update({
+            where: { id: clientId },
+            data: { isDisallowed },
+        });
+        
+        return {
+            success: true,
+            client: updatedClient,
+            message: isDisallowed ? "Cliente restringido exitosamente" : "Cliente activado exitosamente"
+        };
+    } catch (error) {
+        console.error("[UPDATE_CLIENT_STATUS]", error);
+        return {
+            success: false,
+            error: "Error al actualizar el estado del cliente"
+        };
+    }
+};

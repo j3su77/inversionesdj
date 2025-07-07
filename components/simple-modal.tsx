@@ -85,7 +85,7 @@ export const SimpleModal = ({
       <AlertDialogContent
         className={cn(
           `overflow-y-auto pt-0 px-0 rounded-md ${
-            large ? "max-w-screen-lg min-h-[300px]" : "max-w-[600px] w-[95%]"
+            large ? "!max-w-screen-lg !min-h-[300px]" : "max-w-[600px] w-[95%]"
           }  max-h-screen ${modalClass}`
         )}
       >
@@ -95,10 +95,10 @@ export const SimpleModal = ({
               {title}
               <Button
                 className={cn(
-                  "w-fit h-fit flex rounded-sm justify-center items-center p-0",
+                  "w-fit h-fit flex rounded-sm justify-center items-center px-0 p-1 bg-red-600 hover:bg-red-700",
                   btnCloseClass
                 )}
-                variant="secondary"
+               
                 onClick={handleClose}
               >
                 <X className="text-white w-5 h-5" />

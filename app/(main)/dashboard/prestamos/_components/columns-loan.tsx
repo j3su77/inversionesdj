@@ -48,7 +48,7 @@ export const columnsLoan: ColumnDef<
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Número de préstamo
+          Código
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );

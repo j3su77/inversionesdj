@@ -76,7 +76,7 @@ async function GestionarPrestamo({ params }: { params: Promise<{ loanId: string 
           {loan.status === "PENDING" && <ApproveButton loanId={loan.id} />}
           {loan.status === "ACTIVE" && (
             <Link
-              className={cn(buttonVariants())}
+              className={cn(buttonVariants({className: "px-8 py-9 text-xl"}))}
               href={`/dashboard/prestamos/gestionar/${loan.id}/registrar-pago`}
             >
               Registrar Pago

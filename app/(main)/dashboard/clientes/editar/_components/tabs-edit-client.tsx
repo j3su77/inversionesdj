@@ -11,12 +11,14 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { cn, formatCurrency } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { useState } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { AddClientForm } from "../../_components/add-client-form";
 import { AddDocumentIdcard } from "../../_components/add-document-idcard";
 import { AddDocumentUtilityBill } from "../../_components/add-document-utilityBill";
+import { IndependentClientStatusToggle } from "../../_components/client-status-form";
 import { Client, Document, Loan, Payment } from "@prisma/client";
 import Link from "next/link";
 
@@ -25,6 +27,10 @@ interface CreditStats {
   activeLoans: number;
   totalPaid: number;
   overduePayments: number;
+  totalPayments: number;
+  completedLoans: number;
+  totalDebt: number;
+  averagePaymentAmount: number;
 }
 
 interface TabsEditClientProps {
@@ -78,9 +84,10 @@ export const TabsEditClient = ({
         <Card>
           <CardHeader>
             <CardTitle className="flex justify-between">
-              Información Personal
+              {editBasicInfo ? "Editar Información" : "Información Básica"}
+
               <Button onClick={() => setEditBasicInfo(!editBasicInfo)}>
-                {editBasicInfo ? "Cancelar" : "Editar"}
+                {editBasicInfo ? "Dejar de Editar" : "Editar"}
               </Button>
             </CardTitle>
           </CardHeader>
@@ -89,6 +96,36 @@ export const TabsEditClient = ({
               <AddClientForm client={client} />
             ) : (
               <div className="space-y-4">
+                {/* Control de estado independiente */}
+                <div className="p-4 bg-slate-50 rounded-lg border">
+                  <div className="flex justify-between items-center">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-slate-900">
+                        Estado del Cliente
+                      </h4>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Controla si el cliente puede recibir nuevos préstamos
+                      </p>
+                    </div>
+                    <div className="ml-4">
+                      <IndependentClientStatusToggle
+                        client={client}
+                        onStatusChange={(isDisallowed) => {
+                          // Opcional: actualizar el estado local o realizar otras acciones
+                          console.log(
+                            `Cliente ${
+                              isDisallowed ? "restringido" : "activado"
+                            }`
+                          );
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Separator */}
+                <Separator className="my-4" />
+
                 {/* Información básica */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -115,6 +152,35 @@ export const TabsEditClient = ({
                       {client.address || "No especificada"}
                     </p>
                   </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Estado General
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant={
+                          client.status === "ACTIVE" ? "success" : "secondary"
+                        }
+                      >
+                        {client.status === "ACTIVE"
+                          ? "Activo"
+                          : client.status === "INACTIVE"
+                          ? "Inactivo"
+                          : "Bloqueado"}
+                      </Badge>
+                      {client.isDisallowed && (
+                        <Badge variant="destructive">Restringido</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Fecha de Registro
+                    </p>
+                    <p className="font-medium">
+                      {client.createdAt.toLocaleDateString()}
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -126,91 +192,202 @@ export const TabsEditClient = ({
             <CardTitle>
               <h3 className="font-semibold mb-3">Perfil Crediticio</h3>
             </CardTitle>
-            <Link
-              className={cn(buttonVariants())}
-              href={`/dashboard/prestamos/registrar?clientId=${client.id}`}
-            >
-              Registrar Prestamo
-            </Link>
+            <Button variant="outline" disabled={client.isDisallowed}>
+              <Link
+                passHref
+                href={`/dashboard/prestamos/registrar?clientId=${client.id}`}
+              >
+                Registrar Prestamo
+              </Link>
+            </Button>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* Nivel de riesgo */}
-            <div className="border rounded-lg p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
-                  Nivel de riesgo
-                </span>
-                <Badge
-                  variant={
-                    clientWithProfile.riskLevel === "bajo"
-                      ? "success"
-                      : clientWithProfile.riskLevel === "medio"
-                      ? "warning"
-                      : "destructive"
-                  }
-                >
-                  {clientWithProfile.riskLevel?.toUpperCase() || "NO EVALUADO"}
-                </Badge>
-              </div>
-              <p className="text-xs mt-1 text-muted-foreground">
-                Basado en historial de pagos
-              </p>
-            </div>
-
-            {/* Categoría de ingresos */}
-            <div className="border rounded-lg p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
-                  Categoría salarial
-                </span>
-                <div className="flex items-center">
-                  <span className="font-medium mr-2">
-                    {clientWithProfile.incomeCategory || "N/A"}
-                  </span>
-                  {clientWithProfile.monthlyIncome && (
-                    <span className="text-xs text-muted-foreground">
-                      (
-                      {formatCurrency({
-                        value: clientWithProfile.monthlyIncome,
-                        symbol: true,
-                      })}
-                      )
-                    </span>
-                  )}
+          <CardContent className="space-y-6">
+            {/* Resumen estadístico */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">
+                  {creditStats.totalLoans}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Préstamos Totales
                 </div>
               </div>
-              <p className="text-xs mt-1 text-muted-foreground">
-                {getIncomeCategoryDescription(clientWithProfile.incomeCategory)}
-              </p>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  {creditStats.activeLoans}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Préstamos Activos
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-emerald-600">
+                  {formatCurrency({
+                    value: creditStats.totalPaid,
+                    symbol: false,
+                  })}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Total Pagado
+                </div>
+              </div>
+              <div className="text-center">
+                <div
+                  className={`text-2xl font-bold ${
+                    creditStats.overduePayments > 0
+                      ? "text-red-600"
+                      : "text-gray-400"
+                  }`}
+                >
+                  {creditStats.overduePayments}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Préstamos en Mora
+                </div>
+              </div>
             </div>
 
-            {/* Comportamiento de pagos */}
-            <div className="border rounded-lg p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
-                  Comportamiento
-                </span>
-                <Badge
-                  variant={
-                    clientWithProfile.paymentBehavior === "excelente"
-                      ? "info"
-                      : clientWithProfile.paymentBehavior === "bueno"
-                      ? "success"
-                      : clientWithProfile.paymentBehavior === "regular"
-                      ? "warning"
-                      : "destructive"
-                  }
-                >
-                  {clientWithProfile.paymentBehavior?.toUpperCase() ||
-                    "SIN HISTORIAL"}
-                </Badge>
+            {/* Información adicional */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-3 bg-slate-50 rounded-lg">
+              <div className="text-center">
+                <div className="text-lg font-semibold text-slate-700">
+                  {creditStats.completedLoans}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Préstamos Completados
+                </div>
               </div>
-              <p className="text-xs mt-1 text-muted-foreground">
-                {getPaymentBehaviorDescription(
-                  clientWithProfile.paymentBehavior
-                )}
-              </p>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-slate-700">
+                  {creditStats.totalPayments}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Total de Pagos
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-slate-700">
+                  {formatCurrency({
+                    value: creditStats.totalDebt,
+                    symbol: false,
+                  })}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Deuda Pendiente
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-slate-700">
+                  {formatCurrency({
+                    value: creditStats.averagePaymentAmount,
+                    symbol: false,
+                  })}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Pago Promedio
+                </div>
+              </div>
             </div>
+
+            {/* Indicadores de perfil */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Nivel de riesgo */}
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Nivel de Riesgo
+                  </span>
+                  <Badge
+                    variant={
+                      clientWithProfile.riskLevel === "bajo"
+                        ? "success"
+                        : clientWithProfile.riskLevel === "medio"
+                        ? "warning"
+                        : "destructive"
+                    }
+                  >
+                    {clientWithProfile.riskLevel?.toUpperCase() ||
+                      "NO EVALUADO"}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Basado en ingresos y historial de pagos
+                </p>
+              </div>
+
+              {/* Categoría de ingresos */}
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Categoría Salarial
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="font-medium">
+                      {clientWithProfile.incomeCategory || "N/A"}
+                    </Badge>
+                    {clientWithProfile.monthlyIncome && (
+                      <span className="text-xs text-muted-foreground">
+                        (
+                        {formatCurrency({
+                          value: clientWithProfile.monthlyIncome,
+                          symbol: true,
+                        })}
+                        )
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {getIncomeCategoryDescription(
+                    clientWithProfile.incomeCategory
+                  )}
+                </p>
+              </div>
+
+              {/* Comportamiento de pagos */}
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Comportamiento
+                  </span>
+                  <Badge
+                    variant={
+                      clientWithProfile.paymentBehavior === "excelente"
+                        ? "success"
+                        : clientWithProfile.paymentBehavior === "bueno"
+                        ? "info"
+                        : clientWithProfile.paymentBehavior === "regular"
+                        ? "warning"
+                        : "destructive"
+                    }
+                  >
+                    {clientWithProfile.paymentBehavior?.toUpperCase() ||
+                      "SIN HISTORIAL"}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {getPaymentBehaviorDescription(
+                    clientWithProfile.paymentBehavior
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {/* Recomendaciones basadas en el perfil */}
+            {clientWithProfile.riskLevel && (
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 className="font-medium text-blue-900 mb-2">
+                  Recomendaciones
+                </h4>
+                <p className="text-sm text-blue-800">
+                  {clientWithProfile.riskLevel === "bajo"
+                    ? "Cliente de bajo riesgo. Apto para préstamos con condiciones preferenciales."
+                    : clientWithProfile.riskLevel === "medio"
+                    ? "Cliente de riesgo medio. Evaluar condiciones estándar y seguimiento regular."
+                    : "Cliente de alto riesgo. Considerar garantías adicionales y monitoreo frecuente."}
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </TabsContent>
@@ -412,56 +589,178 @@ export const TabsEditClient = ({
 // Funciones auxiliares (pueden ir fuera del componente)
 function getIncomeCategoryDescription(category?: string) {
   const descriptions: Record<string, string> = {
-    A: "Ingresos Muy Altos (Más de $10.000.000/mes)",
+    A: "Ingresos Muy Altos ($10.000.000+/mes)",
     B: "Ingresos Altos ($6.000.000 - $9.999.999/mes)",
     C: "Ingresos Medios ($1.000.000 - $5.999.999/mes)",
-    D: "Ingresos Bajos (Menos de $999.999/mes)",
+    D: "Ingresos Bajos (Menos de $1.000.000/mes)",
   };
   return descriptions[category || ""] || "No categorizado";
 }
 
 function getPaymentBehaviorDescription(behavior?: string) {
   const descriptions: Record<string, string> = {
-    excelente: "0 pagos atrasados",
-    bueno: "1-2 pagos atrasados",
-    regular: "3-5 pagos atrasados",
-    malo: "Más de 5 pagos atrasados",
+    excelente: "Sin pagos atrasados o historial impecable",
+    bueno: "Hasta 10% de pagos con retraso menor",
+    regular: "Entre 10-25% de pagos con retrasos",
+    malo: "Más del 25% de pagos atrasados o en mora",
   };
   return descriptions[behavior || ""] || "Sin historial suficiente";
 }
 
 // Función para calcular el perfil del cliente
 function calculateClientProfile(
-  client: Client & { loans: Loan & { payments: Payment[] }[] }
+  client: Client & { loans: (Loan & { payments: Payment[] })[] }
 ): ClientSegment {
   // 1. Calcular categoría de ingresos
   let incomeCategory: "A" | "B" | "C" | "D" = "D";
   if (client.monthlyIncome) {
-    if (client.monthlyIncome > 9999999) incomeCategory = "A";
-    else if (client.monthlyIncome > 4999999) incomeCategory = "B";
-    else if (client.monthlyIncome > 999999) incomeCategory = "C";
+    if (client.monthlyIncome >= 10000000) incomeCategory = "A";
+    else if (client.monthlyIncome >= 6000000) incomeCategory = "B";
+    else if (client.monthlyIncome >= 1000000) incomeCategory = "C";
+    else incomeCategory = "D";
   }
 
-  // 2. Calcular comportamiento de pagos
-  // const latePayments = client.loans.flatMap((loan) =>
-  //   loan.payments.filter((p) => p.paymentDate < new Date() && p. > 0)
-  // ).length;
+  // 2. Calcular comportamiento de pagos basado en historial real
+  let paymentBehavior: "excelente" | "bueno" | "regular" | "malo" = "excelente";
 
-  const paymentBehavior: "excelente" | "regular" | "malo" = "excelente";
-  // if (latePayments > 5) paymentBehavior = "malo";
-  // else if (latePayments > 2) paymentBehavior = "regular";
-  // else if (latePayments > 0) paymentBehavior = "excelente";
+  if (client.loans.length > 0) {
+    let totalLatePayments = 0;
+    let totalPayments = 0;
+    let totalActiveLoans = 0;
 
-  // 3. Calcular nivel de riesgo (combina ingresos y pagos)
+    client.loans.forEach((loan) => {
+      totalPayments += loan.payments.length;
+
+      // Contar préstamos activos
+      if (loan.status === "ACTIVE" || loan.status === "PENDING") {
+        totalActiveLoans++;
+
+        // Verificar si hay pagos vencidos (nextPaymentDate en el pasado)
+        if (
+          loan.nextPaymentDate &&
+          loan.nextPaymentDate < new Date() &&
+          loan.balance > 0
+        ) {
+          totalLatePayments++;
+        }
+      }
+
+      // Analizar historial de pagos para detectar patrones de retraso
+      // Calcular fechas esperadas vs fechas reales de pago
+      loan.payments.forEach((payment, index) => {
+        const expectedDate = calculateExpectedPaymentDate(
+          loan.startDate,
+          index + 1,
+          loan.paymentFrequency
+        );
+        const actualDate = new Date(payment.paymentDate);
+
+        // Si el pago se hizo más de 5 días después de la fecha esperada, contar como tardío
+        const daysDifference = Math.floor(
+          (actualDate.getTime() - expectedDate.getTime()) /
+            (1000 * 60 * 60 * 24)
+        );
+        if (daysDifference > 5) {
+          totalLatePayments++;
+        }
+      });
+    });
+
+    // Calcular el comportamiento basado en el porcentaje de pagos atrasados
+    const latePaymentRate =
+      totalPayments > 0 ? (totalLatePayments / totalPayments) * 100 : 0;
+
+    if (latePaymentRate === 0) {
+      paymentBehavior = "excelente";
+    } else if (latePaymentRate <= 10) {
+      paymentBehavior = "bueno";
+    } else if (latePaymentRate <= 25) {
+      paymentBehavior = "regular";
+    } else {
+      paymentBehavior = "malo";
+    }
+
+    // Ajustar comportamiento si hay préstamos activos en mora
+    if (totalActiveLoans > 0 && totalLatePayments > 0) {
+      const overdueRate = (totalLatePayments / totalActiveLoans) * 100;
+      if (overdueRate > 50) {
+        paymentBehavior = "malo";
+      } else if (overdueRate > 25) {
+        paymentBehavior = "regular";
+      }
+    }
+  }
+
+  // 3. Calcular nivel de riesgo (combina ingresos y comportamiento de pagos)
   let riskLevel: "bajo" | "medio" | "alto" = "medio";
-  if (incomeCategory === "A" && paymentBehavior === "excelente")
-    riskLevel = "bajo";
-  // else if (incomeCategory === "D" || paymentBehavior === "malo")
-  //   riskLevel = "alto";
+
+  // Matriz de riesgo basada en ingresos y comportamiento
+  if (incomeCategory === "A" || incomeCategory === "B") {
+    if (paymentBehavior === "excelente" || paymentBehavior === "bueno") {
+      riskLevel = "bajo";
+    } else if (paymentBehavior === "regular") {
+      riskLevel = "medio";
+    } else {
+      riskLevel = "alto";
+    }
+  } else if (incomeCategory === "C") {
+    if (paymentBehavior === "excelente") {
+      riskLevel = "bajo";
+    } else if (paymentBehavior === "bueno" || paymentBehavior === "regular") {
+      riskLevel = "medio";
+    } else {
+      riskLevel = "alto";
+    }
+  } else {
+    // incomeCategory === "D"
+    if (paymentBehavior === "excelente") {
+      riskLevel = "medio";
+    } else {
+      riskLevel = "alto";
+    }
+  }
+
+  // Ajustar riesgo si no hay historial crediticio
+  if (client.loans.length === 0) {
+    riskLevel = "medio"; // Sin historial = riesgo medio
+    paymentBehavior = "excelente"; // Sin historial negativo
+  }
 
   return {
     riskLevel,
     incomeCategory,
     paymentBehavior,
   };
+}
+
+// Función auxiliar para calcular la fecha esperada de pago
+function calculateExpectedPaymentDate(
+  startDate: Date,
+  installmentNumber: number,
+  frequency: string
+): Date {
+  const start = new Date(startDate);
+
+  switch (frequency) {
+    case "DAILY":
+      return new Date(
+        start.getTime() + (installmentNumber - 1) * 24 * 60 * 60 * 1000
+      );
+    case "WEEKLY":
+      return new Date(
+        start.getTime() + (installmentNumber - 1) * 7 * 24 * 60 * 60 * 1000
+      );
+    case "BIWEEKLY":
+      return new Date(
+        start.getTime() + (installmentNumber - 1) * 15 * 24 * 60 * 60 * 1000
+      );
+    case "MONTHLY":
+      const monthlyDate = new Date(start);
+      monthlyDate.setMonth(monthlyDate.getMonth() + (installmentNumber - 1));
+      return monthlyDate;
+    default:
+      return new Date(
+        start.getTime() + (installmentNumber - 1) * 30 * 24 * 60 * 60 * 1000
+      );
+  }
 }

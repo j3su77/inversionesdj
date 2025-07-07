@@ -34,7 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ClientStatusToggle } from "./client-status-form";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Client, MaritalStatus } from "@prisma/client";
 import { Banner } from "@/components/banner";
@@ -150,7 +150,11 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <Card className="w-full">
+      <Card
+        className={`w-full ${
+          isEdit && "border-none shadow-none rounded-none"
+        } ${isEdit && client?.isDisallowed ? "opacity-50" : ""}`}
+      >
         {isEdit && client?.isDisallowed && (
           <Banner variant={"destructive"} label="Cliente restringido" />
         )}
@@ -164,7 +168,6 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
                   <h2 className="text-xl font-semibold">
                     Información Personal
                   </h2>
-                  {isEdit && <ClientStatusToggle control={form.control} />}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField

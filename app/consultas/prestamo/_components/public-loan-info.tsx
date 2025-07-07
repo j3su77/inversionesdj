@@ -1,22 +1,15 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React from "react";
 import { Client, Loan, Payment } from "@prisma/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, getPaymentFrequencyLabel } from "@/lib/utils";
-import {
-  format,
-  addDays,
-  addWeeks,
-  addMonths,
-  differenceInDays,
-} from "date-fns";
+import { format, addDays, addWeeks, addMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import {
   Calendar,
   CheckCircle,
-  Clock,
   AlertCircle,
   TrendingUp,
   User,
@@ -26,16 +19,6 @@ import Image from "next/image";
 
 interface PublicLoanInfoProps {
   loan: Loan & { client: Client; payments: Payment[] };
-}
-
-interface PaymentScheduleItem {
-  installmentNumber: number;
-  dueDate: Date;
-  amount: number;
-  capitalAmount: number;
-  interestAmount: number;
-  status: "paid" | "pending" | "overdue";
-  actualPayment?: Payment;
 }
 
 export const PublicLoanInfo = ({ loan }: PublicLoanInfoProps) => {
@@ -52,129 +35,75 @@ export const PublicLoanInfo = ({ loan }: PublicLoanInfoProps) => {
   const capitalProgress = (totalCapitalPaid / loan.totalAmount) * 100;
   const paymentsCount = loan.payments.length;
 
-  // Función para calcular la fecha de la próxima cuota
-  const calculateNextPaymentDate = (
-    startDate: Date,
-    installmentNumber: number,
-    frequency: string
-  ): Date => {
-    const start = new Date(startDate);
+  // Obtener el último pago
+  const lastPayment = loan.payments.length > 0 
+    ? loan.payments.reduce((latest, payment) => 
+        new Date(payment.paymentDate) > new Date(latest.paymentDate) ? payment : latest
+      )
+    : null;
 
+  // Función para calcular la próxima fecha de pago basada en la frecuencia
+  const calculateNextPaymentDate = (baseDate: Date, frequency: string): Date => {
+    const date = new Date(baseDate);
+    
     switch (frequency) {
       case "DAILY":
-        return addDays(start, installmentNumber - 1);
+        return addDays(date, 1);
       case "WEEKLY":
-        return addWeeks(start, installmentNumber - 1);
+        return addWeeks(date, 1);
       case "BIWEEKLY":
-        return addDays(start, (installmentNumber - 1) * 15);
+        return addDays(date, 15);
       case "MONTHLY":
-        return addMonths(start, installmentNumber - 1);
+        return addMonths(date, 1);
+      case "QUARTERLY":
+        return addMonths(date, 3);
+      case "YEARLY":
+        return addMonths(date, 12);
       default:
-        return addMonths(start, installmentNumber - 1);
+        return addMonths(date, 1);
     }
   };
 
-  // Función para calcular interés según el tipo
-  const calculateInterest = (
-    remainingBalance: number,
-    interestRate: number,
-    interestType: string,
-    totalAmount: number
-  ): number => {
-    if (interestType === "FIXED") {
-      return totalAmount * (interestRate / 100);
-    } else {
-      return remainingBalance * (interestRate / 100);
+  // Determinar la fecha del próximo pago
+  const getNextPaymentDate = (): Date | null => {
+    // Si existe nextPaymentDate en el loan, usarlo
+    if (loan.nextPaymentDate) {
+      return loan.nextPaymentDate;
     }
+    
+    // Si no existe pero hay pagos, calcular basado en el último pago
+    if (lastPayment) {
+      return calculateNextPaymentDate(lastPayment.paymentDate, loan.paymentFrequency);
+    }
+    
+    // Si no hay pagos, calcular basado en la fecha de inicio
+    if (loan.startDate) {
+      return calculateNextPaymentDate(loan.startDate, loan.paymentFrequency);
+    }
+    
+    return null;
   };
 
-  // Generar cronograma completo de pagos
-  const paymentSchedule = useMemo(() => {
-    const schedule: PaymentScheduleItem[] = [];
-    let remainingBalance = loan.totalAmount;
-    const baseCapitalAmount = loan.totalAmount / loan.installments;
-
-    // Determinar el número total de cuotas a mostrar
-    // Si hay más pagos que cuotas originales, mostrar hasta el último pago + algunas cuotas futuras
-    const maxInstallments = Math.max(loan.installments, paymentsCount + 3);
-
-    for (let i = 1; i <= maxInstallments; i++) {
-      const dueDate = calculateNextPaymentDate(
-        loan.startDate,
-        i,
-        loan.paymentFrequency
-      );
-
-      // Buscar si existe un pago real para esta cuota
-      const actualPayment = loan.payments.find(
-        (p) => p.installmentNumber === i
-      );
-
-      let capitalAmount = baseCapitalAmount;
-      let interestAmount = calculateInterest(
-        remainingBalance,
-        loan.interestRate,
-        loan.interestType,
-        loan.totalAmount
-      );
-
-      // Si hay un pago real, usar esos valores
-      if (actualPayment) {
-        capitalAmount = actualPayment.capitalAmount;
-        interestAmount = actualPayment.interestAmount;
-      }
-
-      const totalAmount = capitalAmount + interestAmount;
-
-      // Determinar estado
-      let status: "paid" | "pending" | "overdue" = "pending";
-      if (actualPayment) {
-        status = "paid";
-      } else if (dueDate < new Date()) {
-        status = "overdue";
-      }
-
-      schedule.push({
-        installmentNumber: i,
-        dueDate,
-        amount: totalAmount,
-        capitalAmount,
-        interestAmount,
-        status,
-        actualPayment,
-      });
-
-      // Actualizar balance restante
-      if (actualPayment) {
-        remainingBalance -= actualPayment.capitalAmount;
-      } else {
-        remainingBalance -= capitalAmount;
-      }
-
-      // Si el balance llega a 0 o menos, no generar más cuotas futuras
-      if (remainingBalance <= 0 && !actualPayment && i >= loan.installments) {
-        break;
-      }
-    }
-
-    return schedule;
-  }, [loan, paymentsCount]);
-
-  // Filtrar pagos por estado
-  const paidPayments = paymentSchedule.filter((p) => p.status === "paid");
-  const pendingPayments = paymentSchedule.filter((p) => p.status === "pending");
-  const overduePayments = paymentSchedule.filter((p) => p.status === "overdue");
+  const nextPaymentDate = getNextPaymentDate();
 
   // Obtener estado del préstamo
   const getLoanStatus = () => {
     if (loan.balance <= 0)
       return { label: "Pagado", color: "bg-green-100 text-green-800" };
-    if (overduePayments.length > 0)
+    if (nextPaymentDate && nextPaymentDate < new Date())
       return { label: "En Mora", color: "bg-red-100 text-red-800" };
     return { label: "Activo", color: "bg-blue-100 text-blue-800" };
   };
 
   const loanStatus = getLoanStatus();
+
+  // Verificar si hay pagos vencidos
+  const isOverdue = nextPaymentDate && nextPaymentDate < new Date() && loan.balance > 0;
+
+  // Calcular días hasta el próximo pago
+  const daysUntilNextPayment = nextPaymentDate 
+    ? Math.ceil((nextPaymentDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+    : null;
 
   // Obtener tipo de interés en español
   const getInterestTypeLabel = (type: string) => {
@@ -225,7 +154,7 @@ export const PublicLoanInfo = ({ loan }: PublicLoanInfoProps) => {
         {/* Información del Cliente y Préstamo */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           {/* Datos del Cliente */}
-          <Card className="col-span-2">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <User className="h-5 w-5" />
@@ -253,7 +182,7 @@ export const PublicLoanInfo = ({ loan }: PublicLoanInfoProps) => {
           </Card>
 
           {/* Datos del Préstamo */}
-          <Card className="col-span-2">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5" />
@@ -349,18 +278,20 @@ export const PublicLoanInfo = ({ loan }: PublicLoanInfoProps) => {
           </CardContent>
         </Card>
 
-        {/* Tabs de Información */}
-
-        {/* Tab Resumen */}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Información de Pagos */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           {/* Próximo Pago */}
-          {pendingPayments.length > 0 && (
-            <Card>
+          {loan.balance > 0 && nextPaymentDate && (
+            <Card className={isOverdue ? "border-red-200 bg-red-50" : ""}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="h-5 w-5" />
-                  Próximo Pago
+                  {isOverdue ? "Pago Vencido" : "Próximo Pago"}
+                  {!loan.nextPaymentDate && (
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      Calculado
+                    </Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -369,55 +300,58 @@ export const PublicLoanInfo = ({ loan }: PublicLoanInfoProps) => {
                     <span className="text-gray-600">Fecha:</span>
                     <span className="font-semibold">
                       {format(
-                        pendingPayments[0].dueDate,
+                        nextPaymentDate,
                         "dd 'de' MMMM 'de' yyyy",
                         { locale: es }
                       )}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Cuota #:</span>
-                    <span className="font-semibold">
-                      {pendingPayments[0].installmentNumber}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
                     <span className="text-gray-600">Monto:</span>
                     <span className="font-semibold text-lg">
                       {formatCurrency({
-                        value: pendingPayments[0].amount,
+                        value: loan.currentInstallmentAmount || loan.feeAmount || 0,
                         symbol: true,
                       })}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Días restantes:</span>
+                    <span className="text-gray-600">
+                      {isOverdue ? "Días vencidos:" : "Días restantes:"}
+                    </span>
                     <span
                       className={`font-semibold ${
-                        differenceInDays(
-                          pendingPayments[0].dueDate,
-                          new Date()
-                        ) < 0
+                        isOverdue
                           ? "text-red-600"
-                          : differenceInDays(
-                              pendingPayments[0].dueDate,
-                              new Date()
-                            ) <= 3
+                          : daysUntilNextPayment && daysUntilNextPayment <= 3
                           ? "text-orange-600"
                           : "text-green-600"
                       }`}
                     >
-                      {differenceInDays(pendingPayments[0].dueDate, new Date())}{" "}
-                      días
+                      {daysUntilNextPayment !== null 
+                        ? `${Math.abs(daysUntilNextPayment)} días`
+                        : "N/A"
+                      }
                     </span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Cuotas restantes:</span>
+                    <span className="font-semibold">
+                      {loan.remainingInstallments || (loan.installments - paymentsCount)}
+                    </span>
+                  </div>
+                  {!loan.nextPaymentDate && (
+                    <div className="text-xs text-gray-500 mt-2 p-2 bg-gray-50 rounded">
+                      * Fecha calculada basada en {lastPayment ? "el último pago" : "la fecha de inicio"} y la frecuencia de pago
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
           )}
 
           {/* Último Pago */}
-          {paidPayments.length > 0 && (
+          {lastPayment && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -431,8 +365,7 @@ export const PublicLoanInfo = ({ loan }: PublicLoanInfoProps) => {
                     <span className="text-gray-600">Fecha:</span>
                     <span className="font-semibold">
                       {format(
-                        paidPayments[paidPayments.length - 1].actualPayment!
-                          .paymentDate,
+                        lastPayment.paymentDate,
                         "dd 'de' MMMM 'de' yyyy",
                         { locale: es }
                       )}
@@ -441,16 +374,32 @@ export const PublicLoanInfo = ({ loan }: PublicLoanInfoProps) => {
                   <div className="flex justify-between">
                     <span className="text-gray-600">Cuota #:</span>
                     <span className="font-semibold">
-                      {paidPayments[paidPayments.length - 1].installmentNumber}
+                      {lastPayment.installmentNumber}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Monto:</span>
                     <span className="font-semibold text-lg">
                       {formatCurrency({
-                        value:
-                          paidPayments[paidPayments.length - 1].actualPayment!
-                            .amount,
+                        value: lastPayment.amount,
+                        symbol: true,
+                      })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Capital:</span>
+                    <span className="font-semibold text-green-600">
+                      {formatCurrency({
+                        value: lastPayment.capitalAmount,
+                        symbol: true,
+                      })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Interés:</span>
+                    <span className="font-semibold text-orange-600">
+                      {formatCurrency({
+                        value: lastPayment.interestAmount,
                         symbol: true,
                       })}
                     </span>
@@ -459,150 +408,59 @@ export const PublicLoanInfo = ({ loan }: PublicLoanInfoProps) => {
               </CardContent>
             </Card>
           )}
-          {/* Alertas */}
-          {overduePayments.length > 0 && (
-            <Card className="border-red-200 bg-red-50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-red-800">
-                  <AlertCircle className="h-5 w-5" />
-                  Pagos Vencidos
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-red-700 mb-2">
-                  Tiene {overduePayments.length} pago(s) vencido(s). Por favor,
-                  póngase al día con sus pagos.
-                </p>
-                <div className="text-sm text-red-600">
-                  Monto total vencido:{" "}
-                  {formatCurrency({
-                    value: overduePayments.reduce(
-                      (sum, p) => sum + p.amount,
-                      0
-                    ),
-                    symbol: true,
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          {/* Tab Cronograma Completo */}
+        </div>
 
-          <Card className="col-span-2">
+        {/* Alerta de pago vencido */}
+        {isOverdue && (
+          <Card className="border-red-200 bg-red-50 mb-6">
             <CardHeader>
-              <CardTitle>Cronograma Completo de Pagos</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-red-800">
+                <AlertCircle className="h-5 w-5" />
+                Pago Vencido
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-gray-50">
-                      <th className="text-left p-3 font-semibold">#</th>
-                      <th className="text-left p-3 font-semibold">Fecha</th>
-                      <th className="text-right p-3 font-semibold">Capital</th>
-                      <th className="text-right p-3 font-semibold">Interés</th>
-                      <th className="text-right p-3 font-semibold">Total</th>
-                      <th className="text-center p-3 font-semibold">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paymentSchedule.map((payment, index) => {
-                      const daysUntilDue = differenceInDays(
-                        payment.dueDate,
-                        new Date()
-                      );
-                      const isOverdue = payment.status === "overdue";
-                      const isDueSoon =
-                        daysUntilDue <= 3 &&
-                        daysUntilDue >= 0 &&
-                        payment.status === "pending";
-                      const isPaid = payment.status === "paid";
-
-                      return (
-                        <tr
-                          key={payment.installmentNumber}
-                          className={
-                            isPaid
-                              ? "bg-green-50"
-                              : isOverdue
-                              ? "bg-red-50"
-                              : isDueSoon
-                              ? "bg-orange-50"
-                              : index % 2 === 0
-                              ? "bg-white"
-                              : "bg-gray-50"
-                          }
-                        >
-                          <td className="p-3 font-medium">
-                            {payment.installmentNumber}
-                          </td>
-                          <td className="p-3">
-                            {format(payment.dueDate, "dd/MM/yyyy", {
-                              locale: es,
-                            })}
-                          </td>
-                          <td className="p-3 text-right">
-                            {formatCurrency({
-                              value: payment.capitalAmount,
-                              symbol: true,
-                            })}
-                          </td>
-                          <td className="p-3 text-right text-orange-600">
-                            {formatCurrency({
-                              value: payment.interestAmount,
-                              symbol: true,
-                            })}
-                          </td>
-                          <td className="p-3 text-right font-semibold">
-                            {formatCurrency({
-                              value: payment.amount,
-                              symbol: true,
-                            })}
-                          </td>
-                          <td className="p-3 text-center">
-                            <Badge
-                              className={
-                                isPaid
-                                  ? "bg-green-100 text-green-800"
-                                  : isOverdue
-                                  ? "bg-red-100 text-red-800"
-                                  : isDueSoon
-                                  ? "bg-orange-100 text-orange-800"
-                                  : "bg-blue-100 text-blue-800"
-                              }
-                            >
-                              {isPaid ? (
-                                <>
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  Pagado
-                                </>
-                              ) : isOverdue ? (
-                                <>
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  Vencido
-                                </>
-                              ) : isDueSoon ? (
-                                <>
-                                  <Clock className="h-3 w-3 mr-1" />
-                                  Próximo
-                                </>
-                              ) : (
-                                <>
-                                  <Calendar className="h-3 w-3 mr-1" />
-                                  Pendiente
-                                </>
-                              )}
-                            </Badge>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <p className="text-red-700 mb-2">
+                Su pago está vencido. Por favor, póngase al día con sus pagos lo antes posible.
+              </p>
+              <div className="text-sm text-red-600">
+                Monto vencido: {formatCurrency({
+                  value: loan.currentInstallmentAmount || loan.feeAmount || 0,
+                  symbol: true,
+                })}
               </div>
             </CardContent>
           </Card>
-        </div>
+        )}
+
+        {/* Información adicional */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Información Adicional</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-lg font-semibold text-gray-700">
+                  {paymentsCount}
+                </div>
+                <div className="text-sm text-gray-600">Pagos Realizados</div>
+              </div>
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-lg font-semibold text-gray-700">
+                  {format(loan.startDate, "dd/MM/yyyy")}
+                </div>
+                <div className="text-sm text-gray-600">Fecha de Inicio</div>
+              </div>
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-lg font-semibold text-gray-700">
+                  {format(loan.endDate, "dd/MM/yyyy")}
+                </div>
+                <div className="text-sm text-gray-600">Fecha de Fin</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Footer */}
         <div className="mt-8 text-center text-gray-500 text-sm">
@@ -610,7 +468,7 @@ export const PublicLoanInfo = ({ loan }: PublicLoanInfoProps) => {
             © 2025 Inversiones DJ - Consulta generada el{" "}
             {format(new Date(), "dd/MM/yyyy 'a las' HH:mm", { locale: es })}
           </p>
-          <p>Para más información, contacte </p>
+          <p>Para más información, contacte a su asesor</p>
         </div>
       </div>
     </div>
