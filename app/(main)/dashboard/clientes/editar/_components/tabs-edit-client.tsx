@@ -607,6 +607,7 @@ function getPaymentBehaviorDescription(behavior?: string) {
   return descriptions[behavior || ""] || "Sin historial suficiente";
 }
 
+
 // Función para calcular el perfil del cliente
 function calculateClientProfile(
   client: Client & { loans: (Loan & { payments: Payment[] })[] }

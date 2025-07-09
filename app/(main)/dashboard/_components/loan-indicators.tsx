@@ -88,6 +88,7 @@ export function LoanIndicators() {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       {/* Total Préstamos Activos */}
+      {/* todo: agregar link a la tabla de prestamos activos */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">
