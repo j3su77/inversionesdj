@@ -32,7 +32,15 @@ const EditClientPage = async ({ params }: { params: Promise<{ clientId: string }
     totalPaid: client.loans.reduce((sum, loan) => sum + (loan.totalAmount - loan.balance), 0),
     overduePayments: client.loans.flatMap(loan => 
       loan.payments.filter(p => p.paymentDate < new Date() && p.amount > 0)
-    ).length
+    ).length,
+    totalPayments: client.loans.reduce((sum, loan) => sum + loan.payments.length, 0),
+    completedLoans: client.loans.filter(loan => loan.balance === 0).length,
+    totalDebt: client.loans.reduce((sum, loan) => sum + loan.balance, 0),
+    averagePaymentAmount: (() => {
+      const allPayments = client.loans.flatMap(loan => loan.payments);
+      const totalPaymentAmount = allPayments.reduce((sum, payment) => sum + payment.amount, 0);
+      return allPayments.length > 0 ? totalPaymentAmount / allPayments.length : 0;
+    })(),
   };
 
   return (
