@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import { getLoansByStatus, type LoanStatusFilter } from "@/actions/loans";
-import { Loader2 } from "lucide-react";
+import { getLoansByStatus, type LoanStatusFilter } from "@/actions/loans";  
 import { Loan } from "@prisma/client";
 import { DataTable } from "@/components/datatable";
 import { columnsLoan } from "./columns-loan";
+import useTabManager from "@/hooks/use-tab";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const tabs = [
   {
@@ -33,7 +34,10 @@ const tabs = [
 ] as const;
 
 export function TabsLoanList() {
-  const [activeTab, setActiveTab] = useState<LoanStatusFilter>("active");
+  const [isClient, setIsClient] = useState<boolean>(false);
+  const { activeTab, handleTabChange } = useTabManager({
+    initialTab: "dueToday",
+  });
   const [loans, setLoans] = useState<
     (Loan & {
       client: {
@@ -53,10 +57,14 @@ export function TabsLoanList() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
     const loadLoans = async () => {
       try {
         setIsLoading(true);
-        const data = await getLoansByStatus(activeTab);
+        const data = await getLoansByStatus(activeTab as LoanStatusFilter);
         setLoans(data);
       } catch (error) {
         console.error("Error loading loans:", error);
@@ -68,11 +76,23 @@ export function TabsLoanList() {
     loadLoans();
   }, [activeTab]);
 
+  useEffect(() => {
+    console.log({ activeTab });
+  }, [activeTab]);
+
+  if (!isClient || activeTab == null) {
+    return (
+      <div className="flex justify-center items-center py-8">
+        <Skeleton className="h-[300px] w-full " />
+      </div>
+    );
+  }
+
   return (
     <Tabs
       defaultValue="active"
       value={activeTab}
-      onValueChange={(value) => setActiveTab(value as LoanStatusFilter)}
+      onValueChange={(value) => handleTabChange(value as LoanStatusFilter)}
       className="space-y-4"
     >
       <TabsList>
@@ -84,15 +104,7 @@ export function TabsLoanList() {
       </TabsList>
       {tabs.map((tab) => (
         <TabsContent key={tab.value} value={tab.value} className="space-y-4">
-          {isLoading ? (
-            <div className="flex justify-center items-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            // <LoanTable loans={loans} />
-
-            <DataTable data={loans} columns={columnsLoan} />
-          )}
+          <DataTable loading={isLoading} data={loans} columns={columnsLoan} />
         </TabsContent>
       ))}
     </Tabs>

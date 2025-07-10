@@ -114,14 +114,18 @@ export function PaymentAccountSelector({
   const distributeEqually = () => {
     if (selectedAccounts.length === 0) return;
     
-    const amountPerAccount = totalAmount / selectedAccounts.length;
-    const updatedAccounts = selectedAccounts.map(selection => ({
-      ...selection,
-      amount: Math.min(amountPerAccount, getAccountBalance(selection.accountId))
-    }));
+    const baseAmountPerAccount = Math.floor(totalAmount / selectedAccounts.length);
+    const remainder = totalAmount - (baseAmountPerAccount * selectedAccounts.length);
     
-    onAccountSelect(updatedAccounts);
-    updateTotalAssigned(updatedAccounts);
+    const updated = selectedAccounts.map((selection, index) => {
+      // Los primeros 'remainder' cuentas reciben un peso extra
+      const amount = baseAmountPerAccount + (index < remainder ? 1 : 0);
+      return {
+        ...selection,
+        amount: amount,
+      };
+    });
+    onAccountSelect(updated);
   };
 
   // Completar automáticamente el monto restante
@@ -159,12 +163,18 @@ export function PaymentAccountSelector({
     const updatedSelections = [...selectedAccounts, newSelection];
     onAccountSelect(updatedSelections);
         
-    // Redistribuir automáticamente de forma equitativa
-    const amountPerAccount = totalAmount / updatedSelections.length;
-    const redistributed = updatedSelections.map((selection) => ({
-      ...selection,
-      amount: Math.min(amountPerAccount, getAccountBalance(selection.accountId)),
-    }));
+    // Redistribuir automáticamente de forma equitativa con manejo de restos
+    const baseAmountPerAccount = Math.floor(totalAmount / updatedSelections.length);
+    const remainder = totalAmount - (baseAmountPerAccount * updatedSelections.length);
+    
+    const redistributed = updatedSelections.map((selection, index) => {
+      // Los primeros 'remainder' cuentas reciben un peso extra
+      const amount = baseAmountPerAccount + (index < remainder ? 1 : 0);
+      return {
+        ...selection,
+        amount: amount,
+      };
+    });
     
     onAccountSelect(redistributed);
   };
@@ -175,12 +185,18 @@ export function PaymentAccountSelector({
 
     // Redistribuir entre las cuentas restantes si hay alguna
     if (updated.length > 0) {
-      // Redistribuir el monto de la cuenta eliminada
-      const amountPerAccount = totalAmount / updated.length;
-      const redistributed = updated.map((selection) => ({
-        ...selection,
-        amount: Math.min(amountPerAccount, getAccountBalance(selection.accountId)),
-      }));
+      // Redistribuir el monto de la cuenta eliminada con manejo de restos
+      const baseAmountPerAccount = Math.floor(totalAmount / updated.length);
+      const remainder = totalAmount - (baseAmountPerAccount * updated.length);
+      
+      const redistributed = updated.map((selection, index) => {
+        // Los primeros 'remainder' cuentas reciben un peso extra
+        const amount = baseAmountPerAccount + (index < remainder ? 1 : 0);
+        return {
+          ...selection,
+          amount: amount,
+        };
+      });
       onAccountSelect(redistributed);
     }
   };
@@ -373,7 +389,7 @@ export function PaymentAccountSelector({
           </div>
         )}
 
-        {remainingAmount !== 0 && selectedAccounts.length > 0 && (
+        {remainingAmount !== 0 && selectedAccounts.length > 0 && Math.abs(remainingAmount) > 2 && (
           <div className={`p-3 rounded-lg border ${
             remainingAmount > 0 
               ? 'bg-yellow-100 border-yellow-300' 
@@ -430,11 +446,17 @@ export function AccountSelector({
   const distributeEqually = () => {
     if (selectedAccounts.length === 0) return;
     
-    const amountPerAccount = totalLoanAmount / selectedAccounts.length;
-    const updated = selectedAccounts.map((selection) => ({
-      ...selection,
-      amount: amountPerAccount,
-    }));
+    const baseAmountPerAccount = Math.floor(totalLoanAmount / selectedAccounts.length);
+    const remainder = totalLoanAmount - (baseAmountPerAccount * selectedAccounts.length);
+    
+    const updated = selectedAccounts.map((selection, index) => {
+      // Los primeros 'remainder' cuentas reciben un peso extra
+      const amount = baseAmountPerAccount + (index < remainder ? 1 : 0);
+      return {
+        ...selection,
+        amount: amount,
+      };
+    });
     onAccountsChange(updated);
   };
 
@@ -514,12 +536,18 @@ export function AccountSelector({
       };
       const updatedSelections = [...selectedAccounts, newSelection];
       
-      // Redistribuir automáticamente de forma equitativa
-      const amountPerAccount = totalLoanAmount / updatedSelections.length;
-      const redistributed = updatedSelections.map((selection) => ({
-        ...selection,
-        amount: amountPerAccount,
-      }));
+      // Redistribuir automáticamente de forma equitativa con manejo de restos
+      const baseAmountPerAccount = Math.floor(totalLoanAmount / updatedSelections.length);
+      const remainder = totalLoanAmount - (baseAmountPerAccount * updatedSelections.length);
+      
+      const redistributed = updatedSelections.map((selection, index) => {
+        // Los primeros 'remainder' cuentas reciben un peso extra
+        const amount = baseAmountPerAccount + (index < remainder ? 1 : 0);
+        return {
+          ...selection,
+          amount: amount,
+        };
+      });
       
       onAccountsChange(redistributed);
     }
@@ -530,12 +558,18 @@ export function AccountSelector({
     const updated = selectedAccounts.filter((_, i) => i !== index);
     
     if (updated.length > 0) {
-      // Redistribuir el monto de la cuenta eliminada
-      const amountPerAccount = totalLoanAmount / updated.length;
-      const redistributed = updated.map((selection) => ({
-        ...selection,
-        amount: amountPerAccount,
-      }));
+      // Redistribuir el monto de la cuenta eliminada con manejo de restos
+      const baseAmountPerAccount = Math.floor(totalLoanAmount / updated.length);
+      const remainder = totalLoanAmount - (baseAmountPerAccount * updated.length);
+      
+      const redistributed = updated.map((selection, index) => {
+        // Los primeros 'remainder' cuentas reciben un peso extra
+        const amount = baseAmountPerAccount + (index < remainder ? 1 : 0);
+        return {
+          ...selection,
+          amount: amount,
+        };
+      });
       onAccountsChange(redistributed);
     } else {
       onAccountsChange(updated);
@@ -748,7 +782,7 @@ export function AccountSelector({
           </div>
         )}
 
-        {remaining !== 0 && selectedAccounts.length > 0 && (
+        {remaining !== 0 && selectedAccounts.length > 0 && Math.abs(remaining) > 2 && (
           <div className={`p-3 rounded-lg border ${
             remaining > 0 
               ? 'bg-yellow-100 border-yellow-300' 

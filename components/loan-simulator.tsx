@@ -31,6 +31,7 @@ import {
   Download,
 } from "lucide-react";
 import { Button } from "./ui/button";
+import { FormattedInput } from "./ui/formatted-input";
 
 interface LoanConfig {
   totalAmount: number;
@@ -73,9 +74,9 @@ export const LoanSimulator = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const [config, setConfig] = useState<LoanConfig>({
-    totalAmount: 1000000,
-    installments: 12,
-    interestRate: 2.5,
+    totalAmount: 0,
+    installments: 0,
+    interestRate: 0,
     interestType: "DECREASING",
     paymentFrequency: "MONTHLY",
   });
@@ -230,16 +231,16 @@ export const LoanSimulator = () => {
 
   const downloadCard = async () => {
     if (!cardRef.current) return;
-    
+
     setIsDownloading(true);
-    
+
     try {
       // Esperar un poco para asegurar que el DOM esté listo
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
       // Generar la imagen usando html2canvas-pro
       const canvas = await html2canvas(cardRef.current, {
-        backgroundColor: '#ffffff',
+        backgroundColor: "#ffffff",
         scale: 1,
         useCORS: true,
         allowTaint: true,
@@ -248,18 +249,19 @@ export const LoanSimulator = () => {
         logging: true,
         ignoreElements: (element) => {
           // Ignorar elementos que puedan causar problemas
-          return element.tagName === 'SCRIPT' || element.tagName === 'STYLE';
-        }
+          return element.tagName === "SCRIPT" || element.tagName === "STYLE";
+        },
       });
-      
+
       // Descargar la imagen
-      const link = document.createElement('a');
-      link.download = `simulacion-prestamo-${new Date().toISOString().split('T')[0]}.png`;
-      link.href = canvas.toDataURL('image/png');
+      const link = document.createElement("a");
+      link.download = `simulacion-prestamo-${
+        new Date().toISOString().split("T")[0]
+      }.png`;
+      link.href = canvas.toDataURL("image/png");
       link.click();
-      
     } catch (error) {
-      console.error('Error al generar la imagen:', error);
+      console.error("Error al generar la imagen:", error);
     } finally {
       setIsDownloading(false);
     }
@@ -277,7 +279,7 @@ export const LoanSimulator = () => {
             Simulador de Préstamos
           </h1>
           <p className="text-gray-600">
-            Calcula y visualiza la tabla de amortización de tu préstamo
+            Calcula y visualiza la tabla de amortización del préstamo
           </p>
         </div>
       </div>
@@ -297,12 +299,12 @@ export const LoanSimulator = () => {
                 {/* Monto Total */}
                 <div className="space-y-2">
                   <Label htmlFor="totalAmount">Monto Total</Label>
-                  <Input
+                  <FormattedInput
                     id="totalAmount"
                     type="number"
                     value={config.totalAmount || ""}
                     onChange={(e) =>
-                      handleConfigChange("totalAmount", e.target.value)
+                      handleConfigChange("totalAmount", e)
                     }
                     placeholder="Ingrese el monto"
                   />
@@ -397,13 +399,13 @@ export const LoanSimulator = () => {
                   <ArrowLeft className="h-5 w-5" />
                   Volver
                 </Button>
-                <Button 
+                <Button
                   onClick={downloadCard}
                   disabled={isDownloading}
                   className="flex items-center gap-2"
                 >
                   <Download className="h-4 w-4" />
-                  {isDownloading ? 'Generando...' : 'Descargar Tarjeta'}
+                  {isDownloading ? "Generando..." : "Descargar Tarjeta"}
                 </Button>
               </div>
             </div>
@@ -683,12 +685,13 @@ export const LoanSimulator = () => {
 
       {/* Tarjeta para Descarga */}
       <div className="fixed -left-[9999px] -top-[9999px] z-[-1]">
-        <div 
+        <div
           ref={cardRef}
           data-card-ref="true"
           className="w-[800px] h-[600px] bg-gradient-to-br from-blue-50 to-indigo-100 p-8 font-sans"
           style={{
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+            fontFamily:
+              '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
           }}
         >
           <div className="bg-white rounded-lg shadow-lg p-6 h-full flex flex-col">
@@ -703,20 +706,22 @@ export const LoanSimulator = () => {
                     Simulación de Préstamo
                   </h1>
                   <p className="text-gray-600 text-sm">
-                    {new Date().toLocaleDateString('es-CO', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
+                    {new Date().toLocaleDateString("es-CO", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
                     })}
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <div className={`px-2 py-1 rounded text-xs font-medium ${
-                  config.interestType === "FIXED" 
-                    ? 'bg-gray-100 text-gray-800 border border-gray-300' 
-                    : 'bg-blue-100 text-blue-800 border border-blue-300'
-                }`}>
+                <div
+                  className={`px-2 py-1 rounded text-xs font-medium ${
+                    config.interestType === "FIXED"
+                      ? "bg-gray-100 text-gray-800 border border-gray-300"
+                      : "bg-blue-100 text-blue-800 border border-blue-300"
+                  }`}
+                >
                   {getInterestTypeLabel(config.interestType)}
                 </div>
               </div>
@@ -734,16 +739,23 @@ export const LoanSimulator = () => {
                     <div className="flex justify-between">
                       <span className="text-gray-600">Monto:</span>
                       <span className="font-semibold">
-                        {formatCurrency({ value: config.totalAmount, symbol: true })}
+                        {formatCurrency({
+                          value: config.totalAmount,
+                          symbol: true,
+                        })}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Cuotas:</span>
-                      <span className="font-semibold">{config.installments}</span>
+                      <span className="font-semibold">
+                        {config.installments}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Tasa de interés:</span>
-                      <span className="font-semibold">{config.interestRate}%</span>
+                      <span className="font-semibold">
+                        {config.interestRate}%
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Frecuencia:</span>
@@ -762,36 +774,55 @@ export const LoanSimulator = () => {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded" style={{ backgroundColor: '#3b82f6' }}></div>
+                        <div
+                          className="w-4 h-4 rounded"
+                          style={{ backgroundColor: "#3b82f6" }}
+                        ></div>
                         <span className="text-sm">Capital</span>
                       </div>
                       <span className="font-semibold text-sm">
-                        {formatCurrency({ value: config.totalAmount, symbol: true })}
+                        {formatCurrency({
+                          value: config.totalAmount,
+                          symbol: true,
+                        })}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded" style={{ backgroundColor: '#f97316' }}></div>
+                        <div
+                          className="w-4 h-4 rounded"
+                          style={{ backgroundColor: "#f97316" }}
+                        ></div>
                         <span className="text-sm">Intereses</span>
                       </div>
                       <span className="font-semibold text-sm">
-                        {formatCurrency({ value: loanSummary.totalInterest, symbol: true })}
+                        {formatCurrency({
+                          value: loanSummary.totalInterest,
+                          symbol: true,
+                        })}
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-3 mt-2">
                       <div className="h-3 rounded-full flex">
-                        <div 
+                        <div
                           className="h-full rounded-l-full"
-                          style={{ 
-                            backgroundColor: '#3b82f6',
-                            width: `${(config.totalAmount / loanSummary.totalPayments) * 100}%` 
+                          style={{
+                            backgroundColor: "#3b82f6",
+                            width: `${
+                              (config.totalAmount / loanSummary.totalPayments) *
+                              100
+                            }%`,
                           }}
                         ></div>
-                        <div 
+                        <div
                           className="h-full rounded-r-full"
-                          style={{ 
-                            backgroundColor: '#f97316',
-                            width: `${(loanSummary.totalInterest / loanSummary.totalPayments) * 100}%` 
+                          style={{
+                            backgroundColor: "#f97316",
+                            width: `${
+                              (loanSummary.totalInterest /
+                                loanSummary.totalPayments) *
+                              100
+                            }%`,
                           }}
                         ></div>
                       </div>
@@ -807,22 +838,55 @@ export const LoanSimulator = () => {
                     Resumen Financiero
                   </h3>
                   <div className="space-y-4">
-                    <div className="p-4 rounded-lg" style={{ backgroundColor: '#eff6ff' }}>
-                      <div className="text-sm text-gray-600 mb-1">Total a Pagar</div>
-                      <div className="text-2xl font-bold" style={{ color: '#2563eb' }}>
-                        {formatCurrency({ value: loanSummary.totalPayments, symbol: true })}
+                    <div
+                      className="p-4 rounded-lg"
+                      style={{ backgroundColor: "#eff6ff" }}
+                    >
+                      <div className="text-sm text-gray-600 mb-1">
+                        Total a Pagar
+                      </div>
+                      <div
+                        className="text-2xl font-bold"
+                        style={{ color: "#2563eb" }}
+                      >
+                        {formatCurrency({
+                          value: loanSummary.totalPayments,
+                          symbol: true,
+                        })}
                       </div>
                     </div>
-                    <div className="p-4 rounded-lg" style={{ backgroundColor: '#fff7ed' }}>
-                      <div className="text-sm text-gray-600 mb-1">Total Intereses</div>
-                      <div className="text-xl font-bold" style={{ color: '#ea580c' }}>
-                        {formatCurrency({ value: loanSummary.totalInterest, symbol: true })}
+                    <div
+                      className="p-4 rounded-lg"
+                      style={{ backgroundColor: "#fff7ed" }}
+                    >
+                      <div className="text-sm text-gray-600 mb-1">
+                        Total Intereses
+                      </div>
+                      <div
+                        className="text-xl font-bold"
+                        style={{ color: "#ea580c" }}
+                      >
+                        {formatCurrency({
+                          value: loanSummary.totalInterest,
+                          symbol: true,
+                        })}
                       </div>
                     </div>
-                    <div className="p-4 rounded-lg" style={{ backgroundColor: '#f0fdf4' }}>
-                      <div className="text-sm text-gray-600 mb-1">Cuota Promedio</div>
-                      <div className="text-xl font-bold" style={{ color: '#16a34a' }}>
-                        {formatCurrency({ value: loanSummary.monthlyPayment, symbol: true })}
+                    <div
+                      className="p-4 rounded-lg"
+                      style={{ backgroundColor: "#f0fdf4" }}
+                    >
+                      <div className="text-sm text-gray-600 mb-1">
+                        Cuota Promedio
+                      </div>
+                      <div
+                        className="text-xl font-bold"
+                        style={{ color: "#16a34a" }}
+                      >
+                        {formatCurrency({
+                          value: loanSummary.monthlyPayment,
+                          symbol: true,
+                        })}
                       </div>
                     </div>
                   </div>
@@ -835,12 +899,21 @@ export const LoanSimulator = () => {
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Tasa efectiva:</span>
-                      <span className="font-semibold">{loanSummary.effectiveRate.toFixed(2)}%</span>
+                      <span className="font-semibold">
+                        {loanSummary.effectiveRate.toFixed(2)}%
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Ahorro vs tasa fija:</span>
-                      <span className="font-semibold" style={{ color: '#16a34a' }}>
-                        {config.interestType === 'DECREASING' ? 'Aplicable' : 'N/A'}
+                      <span className="text-gray-600">
+                        Ahorro vs tasa fija:
+                      </span>
+                      <span
+                        className="font-semibold"
+                        style={{ color: "#16a34a" }}
+                      >
+                        {config.interestType === "DECREASING"
+                          ? "Aplicable"
+                          : "N/A"}
                       </span>
                     </div>
                   </div>

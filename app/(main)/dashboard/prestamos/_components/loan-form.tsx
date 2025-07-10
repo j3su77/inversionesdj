@@ -52,7 +52,8 @@ import { ChangeFrequencyForm } from "./change-frequency-form";
 interface LoanFormProps {
   client: Client;
   loan?: Loan | null;
-}
+  disabled?: boolean;
+} 
 
 const formSchema = z
   .object({
@@ -114,7 +115,7 @@ const interestTypeOptions = [
   { label: "Fijo sobre monto inicial", value: "FIXED" },
 ];
 
-export function LoanForm({ client, loan }: LoanFormProps) {
+export function LoanForm({ client, loan, disabled }: LoanFormProps) {
   const router = useRouter();
   const isEdit = Boolean(loan);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -159,6 +160,7 @@ export function LoanForm({ client, loan }: LoanFormProps) {
   }, [selectedAccounts, form]);
 
   const onSubmit = async (values: FormValues) => {
+    if (disabled) return;
     try {
       if (isEdit) {
         await fetch(`/api/loans/${loan?.id}`, {
@@ -209,6 +211,7 @@ export function LoanForm({ client, loan }: LoanFormProps) {
                       placeholder="0"
                       value={value || ""}
                       onChange={onChange}
+                      disabled={disabled}
                       {...field}
                     />
                   </FormControl>
@@ -224,7 +227,7 @@ export function LoanForm({ client, loan }: LoanFormProps) {
                 <FormItem>
                   <FormLabel>Número de Cuotas</FormLabel>
                   <FormControl>
-                    <Input type="number" {...field} value={field.value || ""} />
+                    <Input type="number" {...field} value={field.value || ""} disabled={disabled} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -243,6 +246,7 @@ export function LoanForm({ client, loan }: LoanFormProps) {
                       step="0.01"
                       {...field}
                       value={field.value || ""}
+                      disabled={disabled}
                     />
                   </FormControl>
                   <FormMessage />
@@ -259,9 +263,10 @@ export function LoanForm({ client, loan }: LoanFormProps) {
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
+                    disabled={disabled}
                   >
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger disabled={disabled}>
                         <SelectValue placeholder="Seleccione el tipo de interés" />
                       </SelectTrigger>
                     </FormControl>
@@ -293,6 +298,7 @@ export function LoanForm({ client, loan }: LoanFormProps) {
                             "w-full pl-3 text-left font-normal",
                             !field.value && "text-muted-foreground"
                           )}
+                          disabled={disabled}
                         >
                           {field.value ? (
                             format(field.value, "PPP", { locale: es })
@@ -343,7 +349,7 @@ export function LoanForm({ client, loan }: LoanFormProps) {
                             window.location.reload();
                           }}
                           trigger={
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size="sm" >
                               Cambiar
                             </Button>
                           }

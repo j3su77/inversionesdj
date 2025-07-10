@@ -10,6 +10,7 @@ import {
   Clock,
   BarChart2,
   CreditCard,
+  Code,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -23,15 +24,16 @@ interface InfoItemProps {
   icon: React.ReactNode;
   label: string;
   value: string | React.ReactNode;
+  className?: string;
 }
 
-function InfoItem({ icon, label, value }: InfoItemProps) {
+function InfoItem({ icon, label, value, className }: InfoItemProps) {
   return (
     <div className="flex items-center gap-2">
       <div className="text-muted-foreground">{icon}</div>
       <div>
         <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="font-medium">{value}</p>
+        <p className={`font-medium ${className}`}>{value}</p>
       </div>
     </div>
   );
@@ -59,6 +61,12 @@ export function LoanInfoCard({ loan }: LoanInfoCardProps) {
       </CardHeader>
       <CardContent className="pt-1">
         <div className="grid gap-4 md:grid-cols-2">
+          <InfoItem
+            icon={<Code className="h-4 w-4" />}
+            label="Código de préstamo"
+            value={loan.loanNumber}
+            className="font-bold"
+          />
           <InfoItem
             icon={<DollarSign className="h-4 w-4" />}
             label="Monto total"

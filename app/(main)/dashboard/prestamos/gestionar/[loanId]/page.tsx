@@ -55,8 +55,8 @@ async function GestionarPrestamo({ params }: { params: Promise<{ loanId: string 
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-center items-center bg-primary/10 p-4 rounded-lg">
+    <div className="space-y-0">
+      <div className="flex justify-start gap-2 items-center bg-primary/10 p-4 rounded-lg">
         <LoanPaymentCard
           loan={loan}
           payments={loan.payments}
@@ -76,7 +76,7 @@ async function GestionarPrestamo({ params }: { params: Promise<{ loanId: string 
           {loan.status === "PENDING" && <ApproveButton loanId={loan.id} />}
           {loan.status === "ACTIVE" && (
             <Link
-              className={cn(buttonVariants({className: "px-8 py-9 text-xl"}))}
+              className={cn(buttonVariants({className: "px-8 py-6 text-xl"}))}
               href={`/dashboard/prestamos/gestionar/${loan.id}/registrar-pago`}
             >
               Registrar Pago

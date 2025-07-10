@@ -27,8 +27,8 @@ export function PaymentsList({ payments, loan }: PaymentsListProps) {
   const capitalProgress = (totalCapitalPaid / loan.totalAmount) * 100;
   
   // Calcular cuotas restantes basado en los pagos realizados
-  const paymentsCount = payments.length;
-  const remainingInstallments = Math.max(0, loan.installments - paymentsCount);
+  // const paymentsCount = payments.length;
+  const remainingInstallments = loan.remainingInstallments;
 
   return (
     <div className="space-y-6">

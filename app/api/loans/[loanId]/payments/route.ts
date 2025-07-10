@@ -17,19 +17,17 @@ export async function POST(
     console.log({ body });
     const {
       paymentDate,
-      amount,
+      nextPaymentDate,
       notes,
-      splitPayment,
       capitalAmount,
       interestAmount,
       accounts,
     }: {
       paymentDate: string;
-      amount: number;
+      nextPaymentDate: string;
       notes?: string;
-      splitPayment: boolean;
-      capitalAmount?: number;
-      interestAmount?: number;
+      capitalAmount: number;
+      interestAmount: number;
       accounts: AccountSelection[];
     } = body;
 
@@ -40,10 +38,10 @@ export async function POST(
 
     // Validar que el total de las cuentas coincida con el monto del pago
     const totalAccountAmount = accounts.reduce((sum: number, acc: AccountSelection) => sum + acc.amount, 0);
-    const expectedAmount = splitPayment ? (capitalAmount || 0) + (interestAmount || 0) : amount;
+    const expectedAmount = capitalAmount + interestAmount;
     
-    if (Math.abs(totalAccountAmount - expectedAmount) > 0.01) {
-      return new NextResponse("El total asignado a las cuentas debe coincidir con el monto del pago", { status: 400 });
+    if (Math.abs(totalAccountAmount - expectedAmount) > 2.0) {
+      return new NextResponse("El total asignado a las cuentas debe coincidir con el monto del pago (tolerancia de ±2 pesos)", { status: 400 });
     }
 
     // Verificar que todas las cuentas existan y tengan saldo suficiente
@@ -122,68 +120,52 @@ export async function POST(
         loan.balance * (loan.interestRate / 100) + (loan.pendingInterest || 0);
     }
 
-    // Obtener el monto total requerido para la cuota actual
-    const requiredAmount =
-      loan.currentInstallmentAmount || loan.feeAmount + currentInterest;
-
-    // Determinar si es un pago parcial
-    const isPartialPayment = amount < requiredAmount;
-
-    // Calcular el capital base de la cuota
-    const baseCapitalAmount = loan.totalAmount / loan.installments;
-
-    // Calcular montos de capital e interés
-    let finalCapitalAmount = 0;
-    let finalInterestAmount = 0;
-    let pendingInterest = 0;
-
-    if (splitPayment) {
-      finalCapitalAmount = capitalAmount || 0;
-      finalInterestAmount = interestAmount || 0;
-      pendingInterest = currentInterest - finalInterestAmount;
-    } else {
-      if (isPartialPayment) {
-        finalInterestAmount = Math.min(amount, currentInterest);
-        finalCapitalAmount =
-          amount > currentInterest
-            ? Math.min(amount - currentInterest, baseCapitalAmount)
-            : 0;
-        pendingInterest = currentInterest - finalInterestAmount;
-      } else {
-        finalInterestAmount = currentInterest;
-        finalCapitalAmount = baseCapitalAmount;
-      }
-    }
+    // Usar directamente los montos proporcionados por el frontend
+    let finalCapitalAmount = capitalAmount || 0;
+    const finalInterestAmount = interestAmount || 0;
 
     // Validar que el capital a pagar no sea mayor al saldo pendiente
     if (finalCapitalAmount > loan.balance) {
       finalCapitalAmount = loan.balance;
     }
 
+    // Si el pago está muy cerca del saldo total (diferencia <= 2 pesos), pagar el saldo completo
+    if (Math.abs(finalCapitalAmount - loan.balance) <= 2 && finalCapitalAmount >= loan.balance - 2) {
+      finalCapitalAmount = loan.balance;
+    }
+
+    // Calcular el interés pendiente
+    const pendingInterest = Math.max(0, currentInterest - finalInterestAmount);
+
     // Acumular el interés pendiente
-    let newPendingInterest = loan.pendingInterest || 0;
+    let newPendingInterest = 0;
     if (pendingInterest > 0) {
-      newPendingInterest += pendingInterest;
-    } else if (pendingInterest <= 0) {
-      // Si se pagó todo el interés pendiente, limpiar
-      newPendingInterest = 0;
+      newPendingInterest = pendingInterest;
     }
 
     // Calcular nuevo saldo
-    const newBalance = loan.balance - finalCapitalAmount;
+    const newBalance = Math.max(0, loan.balance - finalCapitalAmount);
+
+    // Si el nuevo saldo es menor a 2 pesos, considerarlo como 0 (saldado)
+    const adjustedNewBalance = newBalance <= 2 ? 0 : newBalance;
+    
+    // Si ajustamos el saldo a 0, también ajustar el capital pagado
+    if (newBalance <= 2 && newBalance > 0) {
+      finalCapitalAmount = loan.balance;
+    }
 
     // Calcular el monto de la próxima cuota (incluye pendientes)
-    // const nextInstallmentAmount;
+    const baseCapitalAmount = loan.totalAmount / loan.installments;
     const nextInterest =
       loan.interestType === "FIXED"
         ? loan.fixedInterestAmount || 0
-        : newBalance * (loan.interestRate / 100);
+        : adjustedNewBalance * (loan.interestRate / 100);
     const nextInstallmentAmount =
       baseCapitalAmount + nextInterest + newPendingInterest;
 
     // Determinar el nuevo estado del préstamo
     let newStatus: LoanStatus = loan.status;
-    if (newBalance <= 0) {
+    if (adjustedNewBalance <= 0) {
       newStatus = "COMPLETED";
     }
 
@@ -222,10 +204,11 @@ export async function POST(
       const updatedLoan = await tx.loan.update({
         where: { id: loanId },
         data: {
-          balance: newBalance,
-          remainingInstallments: loan.remainingInstallments,
+          balance: adjustedNewBalance,
+          remainingInstallments: adjustedNewBalance > 0 ? Math.max(0, loan.remainingInstallments - 1) : 0,
           lastPaymentDate: new Date(paymentDate),
-          currentInstallmentAmount: nextInstallmentAmount,
+          nextPaymentDate: adjustedNewBalance > 0 ? new Date(nextPaymentDate) : null,
+          currentInstallmentAmount: adjustedNewBalance > 0 ? nextInstallmentAmount : 0,
           pendingInterest: newPendingInterest,
           status: newStatus,
         },

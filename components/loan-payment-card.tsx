@@ -108,7 +108,7 @@ export const LoanPaymentCard = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-1">
       <Button
         onClick={downloadCard}
         disabled={isDownloading}

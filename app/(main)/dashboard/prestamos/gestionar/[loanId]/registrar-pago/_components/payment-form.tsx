@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarIcon, Loader2, Info } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -31,13 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn, formatCurrency } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loan, InterestType, Account } from "@prisma/client";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
 import { FormattedInput } from "@/components/ui/formatted-input";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   PaymentAccountSelector,
   AccountSelection,
@@ -60,12 +54,13 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
   const [isSuccess, setIsSuccess] = useState(false);
 
   // Calcular el monto base de capital por cuota
-  const baseCapitalAmount = loan.totalAmount / loan.installments;
+  const baseCapitalAmount = Math.round(loan.totalAmount / loan.installments);
   // Calcular el interés actual (incluye interés pendiente acumulado)
-  const currentInterest =
+  const currentInterest = Math.round(
     loan.interestType === InterestType.FIXED
       ? (loan.fixedInterestAmount || 0) + (loan.pendingInterest || 0)
-      : loan.balance * (loan.interestRate / 100) + (loan.pendingInterest || 0);
+      : loan.balance * (loan.interestRate / 100) + (loan.pendingInterest || 0)
+  );
   // Calcular el monto total de la cuota actual
   const currentInstallmentAmount =
     loan.currentInstallmentAmount ||
@@ -84,16 +79,12 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
       nextPaymentDate: z.date({
         required_error: "La fecha del próximo pago es requerida",
       }),
-      splitPayment: z.boolean(),
-      amount: z.coerce.number().positive("El monto debe ser mayor a 0"),
       capitalAmount: z.coerce
         .number()
-        .min(0, "El monto de capital no puede ser negativo")
-        .optional(),
+        .min(0, "El monto de capital no puede ser negativo"),
       interestAmount: z.coerce
         .number()
-        .min(0, "El monto de interés no puede ser negativo")
-        .optional(),
+        .min(0, "El monto de interés no puede ser negativo"),
       notes: z.string().optional(),
       accounts: z
         .array(
@@ -106,31 +97,8 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
     })
     .refine(
       (data) => {
-        if (data.splitPayment) {
-          return (
-            data.capitalAmount !== undefined &&
-            data.interestAmount !== undefined
-          );
-        }
-        return true;
-      },
-      {
-        message:
-          "Los montos de capital e interés son requeridos cuando se divide el pago",
-        path: ["capitalAmount", "interestAmount"],
-      }
-    )
-    .refine(
-      (data) => {
-        // Validar que al menos uno de los montos sea mayor a 0 cuando se divide el pago
-        if (
-          data.splitPayment &&
-          data.capitalAmount !== undefined &&
-          data.interestAmount !== undefined
-        ) {
-          return data.capitalAmount > 0 || data.interestAmount > 0;
-        }
-        return true;
+        // Validar que al menos uno de los montos sea mayor a 0
+        return data.capitalAmount > 0 || data.interestAmount > 0;
       },
       {
         message:
@@ -140,11 +108,8 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
     )
     .refine(
       (data) => {
-        // Validar que el capital a pagar no sea mayor al saldo pendiente
-        if (data.splitPayment && data.capitalAmount !== undefined) {
-          return data.capitalAmount <= loan.balance;
-        }
-        return true;
+        // Validar que el capital a pagar no sea mayor al saldo pendiente (con tolerancia de 1 peso)
+        return data.capitalAmount <= loan.balance + 1;
       },
       {
         message:
@@ -159,14 +124,12 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
           (sum, acc) => sum + acc.amount,
           0
         );
-        const paymentAmount = data.splitPayment
-          ? (data.capitalAmount || 0) + (data.interestAmount || 0)
-          : data.amount;
-        return Math.abs(totalAssigned - paymentAmount) < 0.01;
+        const paymentAmount = data.capitalAmount + data.interestAmount;
+        return Math.abs(totalAssigned - paymentAmount) < 2.0; // Aumentar tolerancia a 2 pesos
       },
       {
         message:
-          "El total asignado a las cuentas debe coincidir con el monto del pago",
+          "El total asignado a las cuentas debe coincidir con el monto del pago (tolerancia de ±2 pesos)",
         path: ["accounts"],
       }
     )
@@ -211,16 +174,13 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
 
   const initialAmount = baseCapitalAmount + currentInterest;
 
-  // Calcular el monto esperado de la cuota actual (capital + interés)
-  const expectedInstallmentAmount = baseCapitalAmount + currentInterest;
+  console.log({ initialAmount , baseCapitalAmount, currentInterest});
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       paymentDate: new Date(),
       nextPaymentDate: new Date(),
-      amount: initialAmount,
-      splitPayment: false,
       capitalAmount: baseCapitalAmount,
       interestAmount: currentInterest,
       accounts: [],
@@ -255,77 +215,64 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
   }, [calculatedPayment]);
 
   const { watch } = form;
-  const amount = watch("amount");
-  const splitPayment = watch("splitPayment");
   const capitalAmount = watch("capitalAmount");
   const interestAmount = watch("interestAmount");
 
-  console.log({
-    loann: loan,
-  });
+  console.log("=== FORM VALUES DEBUG ===");
+  console.log("capitalAmount:", capitalAmount, "type:", typeof capitalAmount);
+  console.log("interestAmount:", interestAmount, "type:", typeof interestAmount);
+  console.log("loan.balance:", loan.balance);
+
+  // Detectar si el usuario está cerca del saldo total y sugerir el monto exacto
+  const isNearFullBalance = capitalAmount && Math.abs(Number(capitalAmount) - loan.balance) <= 5;
+  const shouldSuggestFullBalance = isNearFullBalance && Number(capitalAmount) < loan.balance;
 
   // Calcular el monto total del pago para el selector de cuentas
-  const totalPaymentAmount = splitPayment
-    ? (capitalAmount || 0) + (interestAmount || 0)
-    : amount || 0;
+  const totalPaymentAmount = Number(capitalAmount || 0) + Number(interestAmount || 0);
+
+  console.log({
+    totalPaymentAmount,
+    capitalAmountNumber: Number(capitalAmount || 0),
+    interestAmountNumber: Number(interestAmount || 0),
+  });
 
   // Actualizar el capital cuando cambia el tipo de interés
   useEffect(() => {
-    if (!splitPayment) {
-      form.setValue("capitalAmount", baseCapitalAmount);
-    }
+    form.setValue("capitalAmount", baseCapitalAmount);
   }, [
-    splitPayment,
     loan.interestType,
     currentInstallmentAmount,
     baseCapitalAmount,
     form,
     decreasingCapital,
-
     currentInterest,
   ]);
 
   // Calcular los montos de capital e interés basados en el tipo de préstamo
   useEffect(() => {
-    console.log({ hola: { capitalAmount, interestAmount, amount } });
-    if (splitPayment) {
-      if (capitalAmount && interestAmount) {
-        setCalculatedPayment({
-          capital: Number(capitalAmount),
-          interest: Number(interestAmount),
-          total: Number(capitalAmount) + Number(interestAmount),
-        });
-      }
-    } else if (amount) {
-      let capital = 0;
-      let interest = 0;
-
-      if (amount <= currentInterest) {
-        capital = 0;
-        interest = amount;
-      } else {
-        interest = currentInterest;
-        capital =
-          loan.interestType === InterestType.DECREASING
-            ? decreasingCapital
-            : amount - currentInterest;
-      }
-
+    console.log({ hola: { capitalAmount, interestAmount } });
+    if (capitalAmount && interestAmount) {
+      const capitalNum = Number(capitalAmount);
+      const interestNum = Number(interestAmount);
       setCalculatedPayment({
-        capital,
-        interest,
-        total: amount,
+        capital: capitalNum,
+        interest: interestNum,
+        total: capitalNum + interestNum,
       });
     }
   }, [
-    amount,
     currentInterest,
-    splitPayment,
     capitalAmount,
     interestAmount,
     loan.interestType,
     decreasingCapital,
   ]);
+
+  useEffect(() => {
+    console.log({
+      calculatedPayment,
+    });
+  }, [calculatedPayment]);
 
   // Función para calcular automáticamente la próxima fecha de pago
   const calculateAndSetNextPaymentDate = async (paymentDate: Date) => {
@@ -374,52 +321,45 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
   // Validar si el formulario está completo y válido
   const isFormValid = () => {
     const values = form.getValues();
-    
+
     // Verificar campos obligatorios básicos
     if (!values.paymentDate || !values.nextPaymentDate) {
       return false;
     }
-    
+
     // Verificar que la próxima fecha sea posterior a la fecha de pago
     if (values.nextPaymentDate <= values.paymentDate) {
       return false;
     }
-    
+
     // Verificar cuentas seleccionadas
     if (!values.accounts || values.accounts.length === 0) {
       return false;
     }
-    
+
     // Verificar que el total asignado a cuentas coincida con el monto del pago
-    const totalAssigned = values.accounts.reduce((sum, acc) => sum + acc.amount, 0);
-    const paymentAmount = values.splitPayment 
-      ? (values.capitalAmount || 0) + (values.interestAmount || 0)
-      : values.amount || 0;
-    
-    if (Math.abs(totalAssigned - paymentAmount) > 0.01) {
+    const totalAssigned = values.accounts.reduce(
+      (sum, acc) => sum + acc.amount,
+      0
+    );
+    const paymentAmount = Number(values.capitalAmount) + Number(values.interestAmount);
+
+    if (Math.abs(totalAssigned - paymentAmount) > 2.0) { // Aumentar tolerancia a 2 pesos
       return false;
     }
-    
+
     // Verificar montos según el tipo de pago
-    if (values.splitPayment) {
-      if (!values.capitalAmount || !values.interestAmount) {
-        return false;
-      }
-      if (values.capitalAmount < 0 || values.interestAmount < 0) {
-        return false;
-      }
-      if (values.capitalAmount === 0 && values.interestAmount === 0) {
-        return false;
-      }
-      if (values.capitalAmount > loan.balance) {
-        return false;
-      }
-    } else {
-      if (!values.amount || values.amount <= 0) {
-        return false;
-      }
+    if (Number(values.capitalAmount) < 0 || Number(values.interestAmount) < 0) {
+      return false;
     }
-    
+    if (Number(values.capitalAmount) === 0 && Number(values.interestAmount) === 0) {
+      return false;
+    }
+    // Permitir tolerancia de 1 peso para saldos completos
+    if (Number(values.capitalAmount) > loan.balance + 1) {
+      return false;
+    }
+
     return true;
   };
 
@@ -435,13 +375,10 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
         body: JSON.stringify({
           paymentDate: values.paymentDate,
           nextPaymentDate: values.nextPaymentDate,
-          amount: splitPayment
-            ? Number(capitalAmount || 0) + Number(interestAmount || 0)
-            : values.amount,
+          amount: Number(values.capitalAmount) + Number(values.interestAmount),
           notes: values.notes,
-          splitPayment: values.splitPayment,
-          capitalAmount: splitPayment ? Number(capitalAmount) : undefined,
-          interestAmount: splitPayment ? Number(interestAmount) : undefined,
+          capitalAmount: Number(values.capitalAmount),
+          interestAmount: Number(values.interestAmount),
           accounts: values.accounts,
         }),
       });
@@ -452,7 +389,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
 
       setIsSuccess(true);
       toast.success("Pago registrado correctamente");
-      
+
       // Esperar un poco antes de redirigir para mostrar el estado de éxito
       setTimeout(() => {
         router.push(`/dashboard/prestamos/gestionar/${loan.id}`);
@@ -477,12 +414,24 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
             {isSuccess ? (
               <>
                 <div className="h-8 w-8 bg-green-500 rounded-full flex items-center justify-center">
-                  <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <svg
+                    className="h-5 w-5 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-medium text-green-600">¡Pago registrado exitosamente!</p>
+                  <p className="text-lg font-medium text-green-600">
+                    ¡Pago registrado exitosamente!
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     Redirigiendo a la página del préstamo...
                   </p>
@@ -555,74 +504,45 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="splitPayment"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>Dividir pago en capital e interés</FormLabel>
-                    <FormDescription>
-                      Marque esta opción para especificar manualmente los montos
-                      de capital e interés
-                    </FormDescription>
-                  </div>
-                </FormItem>
-              )}
-            />
-
-            {!splitPayment ? (
+            <div className="space-y-4 max-w-sm">
               <FormField
                 control={form.control}
-                name="amount"
+                name="capitalAmount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center gap-2">
-                      Monto a Pagar
-                      <HoverCard>
-                        <HoverCardTrigger>
-                          <Info className="h-4 w-4 text-muted-foreground" />
-                        </HoverCardTrigger>
-                        <HoverCardContent className="w-80">
-                          <div className="space-y-2">
-                            <p className="text-sm">
-                              Cuota actual:{" "}
-                              {formatCurrency({
-                                value:
-                                  calculatedPayment.capital +
-                                  calculatedPayment.interest,
-                                symbol: true,
-                              })}
-                            </p>
-                            <p className="text-sm">
-                              Capital base:{" "}
-                              {formatCurrency({
-                                value: calculatedPayment.capital,
-                                symbol: true,
-                              })}
-                            </p>
-                            <p className="text-sm">
-                              Interés:{" "}
-                              {formatCurrency({
-                                value: currentInterest,
-                                symbol: true,
-                              })}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Puede pagar un monto diferente al de la cuota. Si
-                              paga menos, la diferencia se sumará a la siguiente
-                              cuota.
-                            </p>
-                          </div>
-                        </HoverCardContent>
-                      </HoverCard>
-                    </FormLabel>
+                    <FormLabel>Monto de Capital</FormLabel>
+                    <FormControl>
+                      <FormattedInput
+                        placeholder="0"
+                        {...field}
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    {shouldSuggestFullBalance && (
+                      <FormDescription>
+                        <Button
+                          type="button"
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 text-blue-600"
+                          onClick={() => form.setValue("capitalAmount", loan.balance)}
+                        >
+                          💡 ¿Quieres saldar el préstamo? Haz clic para usar el saldo exacto: {formatCurrency({ value: loan.balance, symbol: true })}
+                        </Button>
+                      </FormDescription>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="interestAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Monto de Interés</FormLabel>
                     <FormControl>
                       <FormattedInput
                         placeholder="0"
@@ -632,22 +552,14 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
                       />
                     </FormControl>
                     <FormDescription>
-                      {amount < expectedInstallmentAmount && amount > 0 && (
+                      {interestAmount && interestAmount < currentInterest && (
                         <span className="text-yellow-600">
-                          Pago parcial. Pendiente:{" "}
+                          Interés pendiente:{" "}
                           {formatCurrency({
-                            value: expectedInstallmentAmount - amount,
+                            value: currentInterest - interestAmount,
                             symbol: true,
-                          })}
-                        </span>
-                      )}
-                      {amount > expectedInstallmentAmount && (
-                        <span className="text-green-600">
-                          Pago mayor al requerido:{" "}
-                          {formatCurrency({
-                            value: amount - expectedInstallmentAmount,
-                            symbol: true,
-                          })}
+                          })}{" "}
+                          se sumará a la siguiente cuota
                         </span>
                       )}
                     </FormDescription>
@@ -655,59 +567,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
                   </FormItem>
                 )}
               />
-            ) : (
-              <div className="space-y-4 max-w-sm">
-                <FormField
-                  control={form.control}
-                  name="capitalAmount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Monto de Capital</FormLabel>
-                      <FormControl>
-                        <FormattedInput
-                          placeholder="0"
-                          {...field}
-                          value={field.value || ""}
-                          onChange={field.onChange}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="interestAmount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Monto de Interés</FormLabel>
-                      <FormControl>
-                        <FormattedInput
-                          placeholder="0"
-                          {...field}
-                          value={field.value || ""}
-                          onChange={field.onChange}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        {interestAmount && interestAmount < currentInterest && (
-                          <span className="text-yellow-600">
-                            Interés pendiente:{" "}
-                            {formatCurrency({
-                              value: currentInterest - interestAmount,
-                              symbol: true,
-                            })}{" "}
-                            se sumará a la siguiente cuota
-                          </span>
-                        )}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            )}
+            </div>
 
             <div className="grid grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
               <div>
@@ -803,7 +663,6 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
                             onSelect={field.onChange}
                             disabled={(date) => date <= new Date()}
                             defaultMonth={watch("nextPaymentDate")}
-                            
                           />
                         </PopoverContent>
                       </Popover>

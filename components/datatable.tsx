@@ -22,11 +22,7 @@ import {
 } from "@/components/ui/table";
 
 import { Button } from "@/components/ui/button";
-import {
-  Loader2,
-  MoreHorizontal,
-  Pencil,
-} from "lucide-react";
+import { Loader2, MoreHorizontal, Pencil } from "lucide-react";
 import Link from "next/link";
 import {
   DropdownMenu,
@@ -35,7 +31,6 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { DataTablePagination } from "./table-pagination";
-
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -68,7 +63,7 @@ export function DataTable<TData, TValue>({
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    getRowId: (row: any) => row.id, 
+    getRowId: (row: any) => row.id,
     state: {
       sorting,
       columnFilters,
@@ -79,10 +74,7 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="">
-      <div className="flex items-center justify-between">
-
-        {headerBtn}
-      </div>
+      <div className="flex items-center justify-between">{headerBtn}</div>
       <div className="rounded-md border">
         <Table className="bg-white">
           <TableHeader>
@@ -106,7 +98,12 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {loading ? (
               <TableRow>
-                <Loader2 className="w-6 h-6 animate-spin" />
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-24 text-center flex justify-center items-center w-full"
+                >
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                </TableCell>
               </TableRow>
             ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (

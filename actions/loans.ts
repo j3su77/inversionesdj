@@ -56,19 +56,10 @@ export const getLoansByStatus = async (status: LoanStatusFilter) => {
         whereClause.AND = [
           { status: "ACTIVE" },
           {
-            OR: [
-              {
-                nextPaymentDate: {
-                  gte: startOfDay(today),
-                  lte: endOfDay(today),
-                },
-              },
-              {
-                nextPaymentDate: {
-                  lt: startOfDay(today),
-                },
-              },
-            ],
+            nextPaymentDate: {
+              gte: startOfDay(today),
+              lte: endOfDay(today),
+            },
           },
         ];
         break;

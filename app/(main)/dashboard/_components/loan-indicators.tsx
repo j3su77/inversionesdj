@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { getLoanStats } from "@/actions/loans";
 import { Skeleton } from "@/components/ui/skeleton";
+import Link from "next/link";
+import { formatCurrency } from "@/lib/utils";
 
 interface LoanStats {
   totalActiveLoans: number;
@@ -89,6 +91,7 @@ export function LoanIndicators() {
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       {/* Total Préstamos Activos */}
       {/* todo: agregar link a la tabla de prestamos activos */}
+      <Link href="/dashboard/prestamos?tab=active">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">
@@ -103,8 +106,10 @@ export function LoanIndicators() {
           </p>
         </CardContent>
       </Card>
+      </Link>
 
       {/* Préstamos al Día */}
+      <Link href="/dashboard/prestamos?tab=active">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Al Día</CardTitle>
@@ -117,20 +122,22 @@ export function LoanIndicators() {
           <p className="text-xs text-muted-foreground">Préstamos sin retraso</p>
         </CardContent>
       </Card>
+      </Link>
 
       {/* Préstamos en Mora */}
+      <Link href="/dashboard/prestamos?tab=overdue">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">En Mora</CardTitle>
           <AlertTriangle className="h-4 w-4 text-red-600" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-red-600">
+          <div className="flex gap-1 items-center text-2xl font-bold text-red-600">
             {stats.overdueLoans}
-          </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[10px] text-muted-foreground font-light">
             {stats.overduePercentage.toFixed(1)}% del total
           </p>
+          </div>
           <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
             <div
               className="bg-red-600 h-2 rounded-full transition-all duration-300"
@@ -139,8 +146,11 @@ export function LoanIndicators() {
           </div>
         </CardContent>
       </Card>
+      </Link>
+
 
       {/* Vencen Hoy */}
+      <Link href="/dashboard/prestamos?tab=dueToday">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Vencen Hoy</CardTitle>
@@ -155,7 +165,7 @@ export function LoanIndicators() {
           </p>
         </CardContent>
       </Card>
-
+      </Link>
       {/* Resumen Financiero */}
       <Card className="md:col-span-2 lg:col-span-4">
         <CardHeader>
@@ -171,7 +181,9 @@ export function LoanIndicators() {
               <div>
                 <p className="text-sm font-medium">Monto Total Prestado</p>
                 <p className="text-2xl font-bold text-blue-600">
-                  ${stats.totalActiveAmount.toLocaleString()}
+                  {formatCurrency({
+                    value: stats.totalActiveAmount,
+                  })}
                 </p>
               </div>
             </div>
@@ -180,7 +192,9 @@ export function LoanIndicators() {
               <div>
                 <p className="text-sm font-medium">Saldo Pendiente</p>
                 <p className="text-2xl font-bold text-orange-600">
-                  ${stats.totalPendingAmount.toLocaleString()}
+                  {formatCurrency({
+                    value: stats.totalPendingAmount,
+                  })}
                 </p>
               </div>
             </div>
@@ -189,7 +203,9 @@ export function LoanIndicators() {
               <div>
                 <p className="text-sm font-medium">Monto en Mora</p>
                 <p className="text-2xl font-bold text-red-600">
-                  ${stats.overdueAmount.toLocaleString()}
+                  {formatCurrency({
+                    value: stats.overdueAmount,
+                  })}
                 </p>
               </div>
             </div>
