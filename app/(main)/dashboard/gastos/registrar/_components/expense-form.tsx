@@ -44,6 +44,7 @@ import {
 import { createExpense } from "@/actions/expenses";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
+import { FormattedInput } from "@/components/ui/formatted-input";
 
 const expenseCategories: ExpenseCategory[] = [
   "SERVICIOS_PUBLICOS",
@@ -267,28 +268,14 @@ export function ExpenseForm({ accounts }: ExpenseFormProps) {
 
           {/* Monto y fecha */}
           <div className="space-y-4">
-            <FormField
-              control={form.control}
+            <FormattedInput
               name="amount"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Monto Total *</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      disabled={isSubmitting}
-                      {...field}
-                      onChange={(e) =>
-                        handleAmountChange(Number(e.target.value))
-                      }
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+              value={form.watch("amount")}
+              onChange={(value) => handleAmountChange(Number(value))}
+              placeholder="0.00"
+              disabled={isSubmitting}
             />
+
 
             <FormField
               control={form.control}

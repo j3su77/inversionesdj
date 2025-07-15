@@ -75,7 +75,7 @@ const formSchema = z
       required_error: "La fecha de inicio es requerida",
     }),
     paymentFrequency: z.nativeEnum(PaymentFrequency),
-    notes: z.string().optional(),
+    notes: z.string().optional().nullable(),
     accounts: z
       .array(
         z.object({
@@ -135,6 +135,7 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
       notes: loan?.notes || "",
       accounts: [],
     },
+    mode: "onChange"
   });
 
   const { isSubmitting, isValid } = form.formState;
@@ -157,6 +158,9 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
   // Actualizar el formulario cuando cambien las cuentas seleccionadas
   useEffect(() => {
     form.setValue("accounts", selectedAccounts);
+    // Forzar revalidación completa del formulario para actualizar el estado isValid
+    // Esto es necesario para que la validación personalizada (refine) también se ejecute
+    form.trigger();
   }, [selectedAccounts, form]);
 
   const onSubmit = async (values: FormValues) => {
@@ -172,7 +176,7 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
         const response = await fetch("/api/loans", {
           method: "POST",
           body: JSON.stringify({
-            ...values,
+            ...values,  
             clientId: client.id,
           }),
         });
@@ -387,7 +391,7 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
                 <FormItem>
                   <FormLabel>Notas</FormLabel>
                   <FormControl>
-                    <Input placeholder="Notas adicionales..." {...field} />
+                    <Input placeholder="Notas adicionales..." {...field} value={field.value || ""} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

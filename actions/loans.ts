@@ -38,7 +38,7 @@ export const getLoanPayments = async (loanId: string) => {
   return payments;
 };
 
-export type LoanStatusFilter = "active" | "dueToday" | "paid" | "overdue" | "all";
+export type LoanStatusFilter = "active" | "dueToday" | "paid" | "overdue" | "cancelled" | "all";
 
 export const getLoansByStatus = async (status: LoanStatusFilter) => {
   try {
@@ -51,6 +51,9 @@ export const getLoansByStatus = async (status: LoanStatusFilter) => {
         break;
       case "paid":
         whereClause.status = "COMPLETED";
+        break;
+      case "cancelled":
+        whereClause.status = "CANCELLED";
         break;
       case "dueToday":
         whereClause.AND = [
@@ -278,6 +281,50 @@ export const calculateNextPaymentDate = async (loanId: string, currentPaymentDat
     return {
       success: false,
       error: "Error al calcular la próxima fecha de pago",
+    };
+  }
+};
+
+export const cancelLoan = async (loanId: string, reason?: string) => {
+  try {
+    const loan = await db.loan.findUnique({
+      where: { id: loanId },
+      select: { status: true, balance: true },
+    });
+
+    if (!loan) {
+      throw new Error("Préstamo no encontrado");
+    }
+
+    if (loan.status === "COMPLETED") {
+      throw new Error("No se puede cancelar un préstamo que ya está completado");
+    }
+
+    if (loan.status === "CANCELLED") {
+      throw new Error("El préstamo ya está cancelado");
+    }
+
+    // Actualizar el préstamo a estado CANCELLED
+    const updatedLoan = await db.loan.update({
+      where: { id: loanId },
+      data: {
+        status: "CANCELLED",
+        nextPaymentDate: null,
+        currentInstallmentAmount: 0,
+        // Opcionalmente agregar una nota sobre la cancelación
+        ...(reason && { notes: reason }),
+      },
+    });
+
+    return {
+      success: true,
+      loan: updatedLoan,
+    };
+  } catch (error) {
+    console.error("[CANCEL_LOAN]", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error al cancelar el préstamo",
     };
   }
 };

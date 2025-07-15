@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { AccountType } from "@prisma/client";
 import { TitlePage } from "@/components/title-page";
+import { DeleteAccountDialog } from "./_components/delete-account-dialog";
 
 const getAccountTypeLabel = (type: AccountType) => {
   switch (type) {
@@ -84,6 +85,11 @@ async function AccountsList() {
                   {account.description}
                 </p>
               )}
+              
+              {/* Botón de eliminar */}
+              <div className="flex justify-end pt-2">
+                <DeleteAccountDialog account={account} />
+              </div>
             </div>
           </CardContent>
         </Card>

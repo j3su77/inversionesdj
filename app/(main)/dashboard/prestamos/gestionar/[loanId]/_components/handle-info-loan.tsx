@@ -7,12 +7,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Account, Client, Loan, LoanAccount } from "@prisma/client";
+import { Account, Client, Loan, LoanAccount, Payment } from "@prisma/client";
 import React, { useState } from "react";
 import { LoanForm } from "../../../_components/loan-form";
 import { ClientInfoCard } from "@/components/client-info-card";
 import { LoanInfoCard } from "./loan-info-card";
 import { Button } from "@/components/ui/button";
+import { DeleteLoanDialog } from "./delete-loan-dialog";
 
 export const HandleInfoLoan = ({
   loan,
@@ -20,15 +21,24 @@ export const HandleInfoLoan = ({
   loan: Loan & {
     client: Client;
     loanAccounts: (LoanAccount & { account: Account })[] | null;
+    payments: Payment[];
   };
 }) => {
   const [editMode, setEditMode] = useState(false);
+  
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">
-        <Button variant="outline" onClick={() => setEditMode(!editMode)}>
-          {editMode ? "Cancelar" : "Editar"}
-        </Button>
+      <div className="flex justify-between items-center">
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setEditMode(!editMode)}>
+            {editMode ? "Cancelar" : "Editar"}
+          </Button>
+        </div>
+        
+        {/* Solo mostrar el botón de eliminar si el préstamo está activo o pendiente */}
+        {(loan.status === "ACTIVE" || loan.status === "PENDING") && (
+          <DeleteLoanDialog loan={loan} />
+        )}
       </div>
 
       {editMode ? (

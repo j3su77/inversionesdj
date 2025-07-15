@@ -10,6 +10,7 @@ import { formatCurrency, getExpenseCategoryLabel, getExpenseCategoryColor } from
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { ExpenseCategory } from "@prisma/client";
+import { DeleteExpenseDialog } from "./_components/delete-expense-dialog";
 
 interface ExpensesPageProps {
   searchParams: Promise<{
@@ -115,8 +116,11 @@ async function ExpensesList({ page = 1, category }: { page?: number; category?: 
                     <div className="text-2xl font-bold text-red-700">
                       {formatCurrency({ value: expense.amount, symbol: true })}
                     </div>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-gray-500 mb-2">
                       {format(new Date(expense.createdAt), "dd/MM/yyyy HH:mm")}
+                    </div>
+                    <div className="flex justify-end">
+                      <DeleteExpenseDialog expense={expense} />
                     </div>
                   </div>
                 </div>

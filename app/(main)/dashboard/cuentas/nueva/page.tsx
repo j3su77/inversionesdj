@@ -20,7 +20,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { FormattedInput } from "@/components/ui/formatted-input"
+// import { FormattedInput } from "@/components/ui/formatted-input"
 import {
   Select,
   SelectContent,
@@ -89,7 +89,7 @@ export default function NuevaCuentaPage() {
         type: values.type,
         subtype: values.subtype,
         accountHolder: values.accountHolder,
-        balance: values.balance,
+        balance: 0,
         description: values.description,
       })
 
@@ -241,7 +241,7 @@ export default function NuevaCuentaPage() {
                   )}
                 />
 
-                <FormField
+                {/* <FormField
                   control={form.control}
                   name="balance"
                   render={({ field: { onChange, value, ...field } }) => (
@@ -258,7 +258,7 @@ export default function NuevaCuentaPage() {
                       <FormMessage />
                     </FormItem>
                   )}
-                />
+                /> */}
               </div>
 
               <FormField
@@ -281,7 +281,7 @@ export default function NuevaCuentaPage() {
               <div className="flex gap-4">
                 <Button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !form.formState.isValid}
                   className="flex-1"
                 >
                   {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

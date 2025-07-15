@@ -460,42 +460,12 @@ export function AccountSelector({
     onAccountsChange(updated);
   };
 
-  // Distribución proporcional basada en saldos disponibles
+  // Distribución proporcional (ahora equitativa ya que no consideramos saldos)
   const distributeByBalance = () => {
     if (selectedAccounts.length === 0) return;
     
-    const accountsWithBalance = selectedAccounts.map((selection) => {
-      const account = getAccountInfo(selection.accountId);
-      return {
-        ...selection,
-        availableBalance: account?.balance || 0,
-      };
-    });
-
-    const totalAvailableBalance = accountsWithBalance.reduce(
-      (sum, acc) => sum + acc.availableBalance,
-      0
-    );
-
-    if (totalAvailableBalance === 0) {
-      distributeEqually();
-      return;
-    }
-
-    const updated = accountsWithBalance.map((selection) => {
-      const proportion = selection.availableBalance / totalAvailableBalance;
-      const calculatedAmount = totalLoanAmount * proportion;
-      
-      // No exceder el saldo disponible de la cuenta
-      const maxAmount = Math.min(calculatedAmount, selection.availableBalance);
-      
-      return {
-        accountId: selection.accountId,
-        amount: maxAmount,
-      };
-    });
-
-    onAccountsChange(updated);
+    // Simplemente hacer distribución equitativa ya que no consideramos saldos
+    distributeEqually();
   };
 
   // Completar automáticamente el monto restante
@@ -576,21 +546,15 @@ export function AccountSelector({
     }
   };
 
-  // Actualizar monto de una cuenta con validación
+  // Actualizar monto de una cuenta
   const updateAmount = (index: number, amount: number) => {
-    const account = getAccountInfo(selectedAccounts[index].accountId);
-    
-    // Validar que no exceda el saldo de la cuenta
-    const maxAmount = account?.balance || 0;
-    const validAmount = Math.min(Math.max(0, amount), maxAmount);
-    
     // Validar que la suma total no exceda el monto del préstamo
     const otherAccountsTotal = selectedAccounts
       .filter((_, i) => i !== index)
       .reduce((sum, selection) => sum + selection.amount, 0);
     
     const maxAllowedAmount = Math.min(
-      validAmount,
+      Math.max(0, amount),
       totalLoanAmount - otherAccountsTotal
     );
 
@@ -687,8 +651,6 @@ export function AccountSelector({
       </CardHeader>
       <CardContent className="space-y-4">
         {selectedAccounts.map((selection, index) => {
-          const accountInfo = getAccountInfo(selection.accountId);
-          
           // Para este dropdown específico, mostrar:
           // 1. La cuenta actualmente seleccionada (si existe)
           // 2. Las cuentas que NO están seleccionadas en OTROS dropdowns
@@ -701,15 +663,11 @@ export function AccountSelector({
               account.id === selection.accountId || // Su cuenta actual
               !otherSelectedAccountIds.includes(account.id) // O cuentas no usadas por otros
           );
-          
-          const exceedsBalance = accountInfo && selection.amount > accountInfo.balance;
 
           return (
             <div
               key={index}
-              className={`flex items-center gap-4 p-4 border rounded-lg ${
-                exceedsBalance ? 'border-red-300 bg-red-50' : ''
-              }`}
+              className="flex items-center gap-4 p-4 border rounded-lg"
             >
               <div className="flex-1">
                 <Select
@@ -727,19 +685,11 @@ export function AccountSelector({
                           <Badge variant="outline" className="text-xs">
                             {getAccountTypeLabel(account.type)}
                           </Badge>
-                          <span className="text-muted-foreground text-sm">
-                            Saldo: {formatCurrency({ value: account.balance, symbol: true })}
-                          </span>
                         </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {exceedsBalance && (
-                  <p className="text-red-600 text-xs mt-1">
-                    Excede el saldo disponible ({formatCurrency({ value: accountInfo.balance, symbol: true })})
-                  </p>
-                )}
               </div>
               <div className="w-40">
                 <FormattedInput

@@ -109,7 +109,7 @@ export async function POST(req: Request) {
                 throw new Error("Cliente no está habilitado para préstamos")
             }
 
-            // 2. Verificar que todas las cuentas existan y tengan saldo suficiente
+            // 2. Verificar que todas las cuentas existan y estén activas
             for (const accountSelection of accounts) {
                 const account = await tx.account.findUnique({
                     where: { 
@@ -121,10 +121,6 @@ export async function POST(req: Request) {
 
                 if (!account) {
                     throw new Error(`Cuenta con ID ${accountSelection.accountId} no encontrada o inactiva`)
-                }
-
-                if (account.balance < accountSelection.amount) {
-                    throw new Error(`La cuenta ${account.name} no tiene saldo suficiente. Saldo disponible: ${account.balance}, Requerido: ${accountSelection.amount}`)
                 }
             }
 
@@ -151,7 +147,7 @@ export async function POST(req: Request) {
                 },
             })
 
-            // 4. Crear las relaciones LoanAccount y actualizar saldos
+            // 4. Crear las relaciones LoanAccount (sin afectar saldos)
             for (const accountSelection of accounts) {
                 // Crear la relación
                 await tx.loanAccount.create({
@@ -159,16 +155,6 @@ export async function POST(req: Request) {
                         loanId: loan.id,
                         accountId: accountSelection.accountId,
                         amount: accountSelection.amount,
-                    },
-                })
-
-                // Actualizar el saldo de la cuenta (restar el monto del préstamo)
-                await tx.account.update({
-                    where: { id: accountSelection.accountId },
-                    data: {
-                        balance: {
-                            decrement: accountSelection.amount,
-                        },
                     },
                 })
             }

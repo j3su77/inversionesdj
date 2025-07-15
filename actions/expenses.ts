@@ -106,7 +106,10 @@ export async function getExpenses(page = 1, limit = 10, category?: ExpenseCatego
   try {
     const skip = (page - 1) * limit;
 
-    const where = category ? { category } : {};
+    const where = {
+      isActive: true, // Solo mostrar gastos activos
+      ...(category && { category }),
+    };
 
     const [expenses, total] = await Promise.all([
       prisma.expense.findMany({
@@ -151,7 +154,10 @@ export async function getExpenses(page = 1, limit = 10, category?: ExpenseCatego
 export async function getExpenseById(id: string) {
   try {
     const expense = await prisma.expense.findUnique({
-      where: { id },
+      where: { 
+        id,
+        isActive: true, // Solo obtener gastos activos
+      },
       include: {
         expenseAccounts: {
           include: {
