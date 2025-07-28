@@ -2,12 +2,14 @@ import { Suspense } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { TitlePage } from "@/components/title-page";
 import { ExpenseForm } from "./_components/expense-form";
-import { getAccounts } from "@/actions/accounts";
+// import { getAccounts } from "@/actions/accounts";
 
 async function ExpenseFormContent() {
   try {
-    const accounts = await getAccounts();
-    return <ExpenseForm accounts={accounts} />;
+    // const accounts = await getAccounts();
+    return <ExpenseForm 
+    // accounts={accounts}
+     />;
   } catch (error) {
     console.error("Error loading accounts:", error);
     return (

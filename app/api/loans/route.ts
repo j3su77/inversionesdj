@@ -2,10 +2,10 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { addDays, addMonths, addWeeks } from "date-fns"
 
-interface AccountSelection {
-    accountId: string;
-    amount: number;
-}
+// interface AccountSelection {
+//     accountId: string;
+//     amount: number;
+// }
 
 export async function POST(req: Request) {
     try {
@@ -19,25 +19,25 @@ export async function POST(req: Request) {
             startDate,
             paymentFrequency,
             notes,
-            accounts,
+            // accounts,
         } = body
 
         // Validar que se proporcionen cuentas
-        if (!accounts || !Array.isArray(accounts) || accounts.length === 0) {
-            return NextResponse.json(
-                { message: "Debe seleccionar al menos una cuenta" },
-                { status: 400 }
-            )
-        }
+        // if (!accounts || !Array.isArray(accounts) || accounts.length === 0) {
+        //     return NextResponse.json(
+        //         { message: "Debe seleccionar al menos una cuenta" },
+        //         { status: 400 }
+        //     )
+        // }
 
         // Validar que el total de las cuentas coincida con el monto del préstamo
-        const totalAssigned = accounts.reduce((sum: number, acc: AccountSelection) => sum + acc.amount, 0)
-        if (Math.abs(totalAssigned - totalAmount) > 0.01) {
-            return NextResponse.json(
-                { message: "El total asignado a las cuentas debe coincidir con el monto del préstamo" },
-                { status: 400 }
-            )
-        }
+        // const totalAssigned = accounts.reduce((sum: number, acc: AccountSelection) => sum + acc.amount, 0)
+        // if (Math.abs(totalAssigned - totalAmount) > 0.01) {
+        //     return NextResponse.json(
+        //         { message: "El total asignado a las cuentas debe coincidir con el monto del préstamo" },
+        //         { status: 400 }
+        //     )
+        // }
 
         // Calcular la fecha de finalización basada en la frecuencia de pagos
         let endDate = new Date(startDate)
@@ -110,19 +110,19 @@ export async function POST(req: Request) {
             }
 
             // 2. Verificar que todas las cuentas existan y estén activas
-            for (const accountSelection of accounts) {
-                const account = await tx.account.findUnique({
-                    where: { 
-                        id: accountSelection.accountId,
-                        isActive: true,
-                        deletedAt: null,
-                    },
-                })
+            // for (const accountSelection of accounts) {
+            //     const account = await tx.account.findUnique({
+            //         where: { 
+            //             id: accountSelection.accountId,
+            //             isActive: true,
+            //             deletedAt: null,
+            //         },
+            //     })
 
-                if (!account) {
-                    throw new Error(`Cuenta con ID ${accountSelection.accountId} no encontrada o inactiva`)
-                }
-            }
+            //     if (!account) {
+            //         throw new Error(`Cuenta con ID ${accountSelection.accountId} no encontrada o inactiva`)
+            //     }
+            // }
 
             // 3. Crear el préstamo
             const loan = await tx.loan.create({
@@ -148,16 +148,16 @@ export async function POST(req: Request) {
             })
 
             // 4. Crear las relaciones LoanAccount (sin afectar saldos)
-            for (const accountSelection of accounts) {
-                // Crear la relación
-                await tx.loanAccount.create({
-                    data: {
-                        loanId: loan.id,
-                        accountId: accountSelection.accountId,
-                        amount: accountSelection.amount,
-                    },
-                })
-            }
+            // for (const accountSelection of accounts) {
+            //     // Crear la relación
+            //     await tx.loanAccount.create({
+            //         data: {
+            //             loanId: loan.id,
+            //             accountId: accountSelection.accountId,
+            //             amount: accountSelection.amount,
+            //         },
+            //     })
+            // }
 
             return loan
         })
@@ -172,17 +172,17 @@ export async function POST(req: Request) {
                         identification: true,
                     },
                 },
-                loanAccounts: {
-                    include: {
-                        account: {
-                            select: {
-                                name: true,
-                                number: true,
-                                type: true,
-                            },
-                        },
-                    },
-                },
+                // loanAccounts: {
+                //     include: {
+                //         account: {
+                //             select: {
+                //                 name: true,
+                //                 number: true,
+                //                 type: true,
+                //             },
+                //         },
+                //     },
+                // },
             },
         })
 

@@ -16,7 +16,13 @@ import {
 import { MainLogo } from "./main-logo";
 import Link from "next/link";
 import { Separator } from "./ui/separator";
-import { HandCoins, Home, Receipt, Users2, Wallet2 } from "lucide-react";
+import {
+  HandCoins,
+  Home,
+  Receipt,
+  Users2,
+  // Wallet2
+} from "lucide-react";
 
 // This is sample data.
 const data = {
@@ -36,11 +42,11 @@ const data = {
       url: "/dashboard/prestamos",
       icon: HandCoins,
     },
-    {
-      title: "Cuentas",
-      url: "/dashboard/cuentas",
-      icon: Wallet2,
-    },
+    // {
+    //   title: "Cuentas",
+    //   url: "/dashboard/cuentas",
+    //   icon: Wallet2,
+    // },
     {
       title: "Gastos",
       url: "/dashboard/gastos",

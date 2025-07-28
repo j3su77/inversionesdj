@@ -53,17 +53,17 @@ export async function POST(
             },
           },
         },
-        expenseAccounts: {
-          include: {
-            expense: {
-              select: {
-                id: true,
-                name: true,
-                isActive: true,
-              },
-            },
-          },
-        },
+        // expenseAccounts: {
+        //   include: {
+        //     expense: {
+        //       select: {
+        //         id: true,
+        //         name: true,
+        //         isActive: true,
+        //       },
+        //     },
+        //   },
+        // },
       },
     });
 
@@ -88,16 +88,16 @@ export async function POST(
     }
 
     // Verificar si la cuenta tiene gastos activos asociados
-    const activeExpenses = account.expenseAccounts.filter(
-      (expenseAccount) => expenseAccount.expense.isActive
-    );
+    // const activeExpenses = account.expenseAccounts.filter(
+    //   (expenseAccount) => expenseAccount.expense.isActive
+    // );
 
-    if (activeExpenses.length > 0) {
-      return new NextResponse(
-        "Cannot delete account with active expenses. Please delete the expenses first.",
-        { status: 400 }
-      );
-    }
+    // if (activeExpenses.length > 0) {
+    //   return new NextResponse(
+    //     "Cannot delete account with active expenses. Please delete the expenses first.",
+    //     { status: 400 }
+    //   );
+    // }
 
     // Eliminar la cuenta (soft delete)
     const deletedAccount = await db.account.update({

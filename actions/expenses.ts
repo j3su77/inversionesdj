@@ -11,43 +11,43 @@ export interface CreateExpenseData {
   amount: number;
   expenseDate: Date;
   notes?: string;
-  accounts: {
-    accountId: string;
-    amount: number;
-  }[];
+  // accounts: {
+  //   accountId: string;
+  //   amount: number;
+  // }[];
 }
 
 export async function createExpense(data: CreateExpenseData) {
   try {
     // Verificar que las cuentas existan y estén activas
-    const accountIds = data.accounts.map(acc => acc.accountId);
-    const accounts = await prisma.account.findMany({
-      where: {
-        id: { in: accountIds },
-        isActive: true
-      }
-    });
+    // const accountIds = data.accounts.map(acc => acc.accountId);
+    // const accounts = await prisma.account.findMany({
+    //   where: {
+    //     id: { in: accountIds },
+    //     isActive: true
+    //   }
+    // });
 
-    if (accounts.length !== accountIds.length) {
-      return { success: false, error: "Una o más cuentas no son válidas" };
-    }
+    // if (accounts.length !== accountIds.length) {
+    //   return { success: false, error: "Una o más cuentas no son válidas" };
+    // }
 
     // Verificar que la suma de las cuentas sea igual al monto total
-    const totalAccountAmount = data.accounts.reduce((sum, acc) => sum + acc.amount, 0);
-    if (Math.abs(totalAccountAmount - data.amount) > 0.01) {
-      return { success: false, error: "La suma de los montos de las cuentas debe ser igual al monto total" };
-    }
+    // const totalAccountAmount = data.accounts.reduce((sum, acc) => sum + acc.amount, 0);
+    // if (Math.abs(totalAccountAmount - data.amount) > 0.01) {
+    //   return { success: false, error: "La suma de los montos de las cuentas debe ser igual al monto total" };
+    // }
 
     // Verificar que las cuentas tengan suficiente saldo
-    for (const accountData of data.accounts) {
-      const account = accounts.find(acc => acc.id === accountData.accountId);
-      if (account && account.balance < accountData.amount) {
-        return { 
-          success: false, 
-          error: `Saldo insuficiente en la cuenta ${account.name}. Saldo disponible: $${account.balance.toLocaleString()}` 
-        };
-      }
-    }
+    // for (const accountData of data.accounts) {
+    //   const account = accounts.find(acc => acc.id === accountData.accountId);
+    //   if (account && account.balance < accountData.amount) {
+    //     return { 
+    //       success: false, 
+    //       error: `Saldo insuficiente en la cuenta ${account.name}. Saldo disponible: $${account.balance.toLocaleString()}` 
+    //     };
+    //   }
+    // }
 
     // Crear el gasto y las relaciones de cuentas en una transacción
     const result = await prisma.$transaction(async (tx) => {
@@ -60,33 +60,33 @@ export async function createExpense(data: CreateExpenseData) {
           amount: data.amount,
           expenseDate: data.expenseDate,
           notes: data.notes,
-          expenseAccounts: {
-            create: data.accounts.map((accountData) => ({
-              accountId: accountData.accountId,
-              amount: accountData.amount,
-            })),
-          },
+          // expenseAccounts: {
+          //   create: data.accounts.map((accountData) => ({
+          //     accountId: accountData.accountId,
+          //     amount: accountData.amount,
+          //   })),
+          // },
         },
-        include: {
-          expenseAccounts: {
-            include: {
-              account: true,
-            },
-          },
-        },
+        // include: {
+        //   expenseAccounts: {
+        //     include: {
+        //       account: true,
+        //     },
+        //   },
+        // },
       });
 
       // Actualizar los saldos de las cuentas
-      for (const accountData of data.accounts) {
-        await tx.account.update({
-          where: { id: accountData.accountId },
-          data: {
-            balance: {
-              decrement: accountData.amount,
-            },
-          },
-        });
-      }
+      // for (const accountData of data.accounts) {
+      //   await tx.account.update({
+      //     where: { id: accountData.accountId },
+      //     data: {
+      //       balance: {
+      //         decrement: accountData.amount,
+      //       },
+      //     },
+      //   });
+      // }
 
       return expense;
     });
@@ -98,7 +98,7 @@ export async function createExpense(data: CreateExpenseData) {
     return { success: true, data: result };
   } catch (error) {
     console.error("Error creating expense:", error);
-    return { success: false, error: "Error interno del servidor" };
+    return { success: false, error: "Error al crear el gasto" };
   }
 }
 
@@ -114,13 +114,13 @@ export async function getExpenses(page = 1, limit = 10, category?: ExpenseCatego
     const [expenses, total] = await Promise.all([
       prisma.expense.findMany({
         where,
-        include: {
-          expenseAccounts: {
-            include: {
-              account: true,
-            },
-          },
-        },
+        // include: {
+        //   expenseAccounts: {
+        //     include: {
+        //       account: true,
+        //     },
+        //   },
+        // },
         orderBy: {
           expenseDate: "desc",
         },
@@ -158,13 +158,13 @@ export async function getExpenseById(id: string) {
         id,
         isActive: true, // Solo obtener gastos activos
       },
-      include: {
-        expenseAccounts: {
-          include: {
-            account: true,
-          },
-        },
-      },
+      // include: {
+      //   expenseAccounts: {
+      //     include: {
+      //       account: true,
+      //     },
+      //   },
+      // },
     });
 
     if (!expense) {

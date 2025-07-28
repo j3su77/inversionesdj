@@ -30,13 +30,13 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn, formatCurrency } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loan, InterestType, Account } from "@prisma/client";
+import { Loan, InterestType } from "@prisma/client";
 import { FormattedInput } from "@/components/ui/formatted-input";
 import {
-  PaymentAccountSelector,
-  AccountSelection,
+  // PaymentAccountSelector,
+  // AccountSelection,
 } from "@/components/ui/account-selector";
-import { getAccounts } from "@/actions/accounts";
+// import { getAccounts } from "@/actions/accounts";
 import { calculateNextPaymentDate } from "@/actions/loans";
 
 interface PaymentFormProps {
@@ -46,10 +46,10 @@ interface PaymentFormProps {
 
 export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
   const router = useRouter();
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [selectedAccounts, setSelectedAccounts] = useState<AccountSelection[]>(
-    []
-  );
+  // const [accounts, setAccounts] = useState<Account[]>([]);
+  // const [selectedAccounts, setSelectedAccounts] = useState<AccountSelection[]>(
+  //   []
+  // );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -86,14 +86,14 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
         .number()
         .min(0, "El monto de interés no puede ser negativo"),
       notes: z.string().optional(),
-      accounts: z
-        .array(
-          z.object({
-            accountId: z.string(),
-            amount: z.number().positive("El monto debe ser mayor a 0"),
-          })
-        )
-        .min(1, "Debe seleccionar al menos una cuenta de destino"),
+      // accounts: z
+      //   .array(
+      //     z.object({
+      //       accountId: z.string(),
+      //       amount: z.number().positive("El monto debe ser mayor a 0"),
+      //     })
+      //   )
+      //   .min(1, "Debe seleccionar al menos una cuenta de destino"),
     })
     .refine(
       (data) => {
@@ -117,22 +117,22 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
         path: ["capitalAmount"],
       }
     )
-    .refine(
-      (data) => {
-        // Validar que el total asignado a las cuentas coincida con el monto del pago
-        const totalAssigned = data.accounts.reduce(
-          (sum, acc) => sum + acc.amount,
-          0
-        );
-        const paymentAmount = data.capitalAmount + data.interestAmount;
-        return Math.abs(totalAssigned - paymentAmount) < 2.0; // Aumentar tolerancia a 2 pesos
-      },
-      {
-        message:
-          "El total asignado a las cuentas debe coincidir con el monto del pago (tolerancia de ±2 pesos)",
-        path: ["accounts"],
-      }
-    )
+    // .refine(
+    //   (data) => {
+    //     // Validar que el total asignado a las cuentas coincida con el monto del pago
+    //     const totalAssigned = data.accounts.reduce(
+    //       (sum, acc) => sum + acc.amount,
+    //       0
+    //     );
+    //     const paymentAmount = data.capitalAmount + data.interestAmount;
+    //     return Math.abs(totalAssigned - paymentAmount) < 2.0; // Aumentar tolerancia a 2 pesos
+    //   },
+    //   {
+    //     message:
+    //       "El total asignado a las cuentas debe coincidir con el monto del pago (tolerancia de ±2 pesos)",
+    //     path: ["accounts"],
+    //   }
+    // )
     .refine(
       (data) => {
         // Validar que la próxima fecha de pago sea posterior a la fecha de pago actual
@@ -183,30 +183,30 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
       nextPaymentDate: new Date(),
       capitalAmount: baseCapitalAmount,
       interestAmount: currentInterest,
-      accounts: [],
+      // accounts: [],
       notes: "",
     },
     mode: "onBlur",
   });
 
   // Cargar cuentas disponibles
-  useEffect(() => {
-    const loadAccounts = async () => {
-      try {
-        const accountsData = await getAccounts();
-        setAccounts(accountsData);
-      } catch (error) {
-        console.error("Error loading accounts:", error);
-        toast.error("Error al cargar las cuentas");
-      }
-    };
-    loadAccounts();
-  }, []);
+  // useEffect(() => {
+  //   const loadAccounts = async () => {
+  //     try {
+  //       const accountsData = await getAccounts();
+  //       setAccounts(accountsData);
+  //     } catch (error) {
+  //       console.error("Error loading accounts:", error);
+  //       toast.error("Error al cargar las cuentas");
+  //     }
+  //   };
+  //   loadAccounts();
+  // }, []);
 
   // Actualizar el formulario cuando cambien las cuentas seleccionadas
-  useEffect(() => {
-    form.setValue("accounts", selectedAccounts);
-  }, [selectedAccounts, form]);
+  // useEffect(() => {
+  //   form.setValue("accounts", selectedAccounts);
+  // }, [selectedAccounts, form]);
 
   useEffect(() => {
     console.log({
@@ -333,20 +333,20 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
     }
 
     // Verificar cuentas seleccionadas
-    if (!values.accounts || values.accounts.length === 0) {
-      return false;
-    }
+    // if (!values.accounts || values.accounts.length === 0) {
+    //   return false;
+    // }
 
     // Verificar que el total asignado a cuentas coincida con el monto del pago
-    const totalAssigned = values.accounts.reduce(
-      (sum, acc) => sum + acc.amount,
-      0
-    );
-    const paymentAmount = Number(values.capitalAmount) + Number(values.interestAmount);
+    // const totalAssigned = values.accounts.reduce(
+    //   (sum, acc) => sum + acc.amount,
+    //   0
+    // );
+    // const paymentAmount = Number(values.capitalAmount) + Number(values.interestAmount);
 
-    if (Math.abs(totalAssigned - paymentAmount) > 2.0) { // Aumentar tolerancia a 2 pesos
-      return false;
-    }
+    // if (Math.abs(totalAssigned - paymentAmount) > 2.0) { // Aumentar tolerancia a 2 pesos
+    //   return false;
+    // }
 
     // Verificar montos según el tipo de pago
     if (Number(values.capitalAmount) < 0 || Number(values.interestAmount) < 0) {
@@ -379,7 +379,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
           notes: values.notes,
           capitalAmount: Number(values.capitalAmount),
           interestAmount: Number(values.interestAmount),
-          accounts: values.accounts,
+          // accounts: values.accounts,
         }),
       });
 
@@ -617,7 +617,8 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
               )}
             />
 
-            <PaymentAccountSelector
+            {/* PaymentAccountSelector - Comentado para la primera etapa */}
+            {/* <PaymentAccountSelector
               accounts={accounts}
               selectedAccounts={selectedAccounts}
               totalAmount={totalPaymentAmount}
@@ -625,7 +626,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
                 form.setValue("accounts", accounts);
                 setSelectedAccounts(accounts);
               }}
-            />
+            /> */}
 
             <Card className="col-span-full bg-orange-200">
               <CardHeader>

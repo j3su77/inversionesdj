@@ -9,7 +9,7 @@ import {
   Percent,
   Clock,
   BarChart2,
-  CreditCard,
+  // CreditCard,
   Code,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -96,7 +96,7 @@ export function LoanInfoCard({ loan }: LoanInfoCardProps) {
               locale: es,
             })}
           />
-          <div className=" flex flex-col gap-2 bg-slate-50 p-2 rounded-sm border border-slate-200">
+          {/* <div className=" flex flex-col gap-2 bg-slate-50 p-2 rounded-sm border border-slate-200">
             <p className="text-sm text-muted-foreground flex items-center gap-2">
               <CreditCard className="h-4 w-4" />
               Cuentas
@@ -118,7 +118,7 @@ export function LoanInfoCard({ loan }: LoanInfoCardProps) {
                   </div>
                 ))}
             </div>
-          </div>
+          </div> */}
         </div>
       </CardContent>
     </Card>

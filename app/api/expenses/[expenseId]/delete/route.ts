@@ -41,13 +41,13 @@ export async function POST(
     // Obtener el gasto con sus cuentas asociadas
     const expense = await db.expense.findUnique({
       where: { id: expenseId },
-      include: {
-        expenseAccounts: {
-          include: {
-            account: true,
-          },
-        },
-      },
+      // include: {
+      //   expenseAccounts: {
+      //     include: {
+      //       account: true,
+      //     },
+      //   },
+      // },
     });
 
     if (!expense) {
@@ -72,16 +72,16 @@ export async function POST(
       });
 
       // 2. Devolver el dinero a las cuentas
-      for (const expenseAccount of expense.expenseAccounts) {
-        await tx.account.update({
-          where: { id: expenseAccount.accountId },
-          data: {
-            balance: {
-              increment: expenseAccount.amount, // Sumar el dinero de vuelta
-            },
-          },
-        });
-      }
+      // for (const expenseAccount of expense.expenseAccounts) {
+      //   await tx.account.update({
+      //     where: { id: expenseAccount.accountId },
+      //     data: {
+      //       balance: {
+      //         increment: expenseAccount.amount, // Sumar el dinero de vuelta
+      //       },
+      //     },
+      //   });
+      // }
 
       return { action: "deleted", expense: deletedExpense };
     });

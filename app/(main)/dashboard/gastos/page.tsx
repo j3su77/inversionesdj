@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TitlePage } from "@/components/title-page";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Receipt, Calendar, DollarSign, Filter } from "lucide-react";
+import { Plus, Receipt, Calendar, Filter } from "lucide-react";
 import Link from "next/link";
 import { getExpenses } from "@/actions/expenses";
 import { formatCurrency, getExpenseCategoryLabel, getExpenseCategoryColor } from "@/lib/utils";
@@ -85,19 +85,19 @@ async function ExpensesList({ page = 1, category }: { page?: number; category?: 
                       <p className="text-gray-600 mb-3">{expense.description}</p>
                     )}
                     
-                    <div className="flex items-center gap-6 text-sm text-gray-500">
+                    <div className="flex items-center gap-4 text-sm text-gray-500">
                       <div className="flex items-center gap-1">
                         <Calendar className="h-4 w-4" />
                         {format(new Date(expense.expenseDate), "dd 'de' MMMM 'de' yyyy", { locale: es })}
                       </div>
-                      <div className="flex items-center gap-1">
+                      {/* <div className="flex items-center gap-1">
                         <DollarSign className="h-4 w-4" />
                         {expense.expenseAccounts.length} cuenta{expense.expenseAccounts.length !== 1 ? 's' : ''}
-                      </div>
+                      </div> */}
                     </div>
 
                     {/* Cuentas utilizadas */}
-                    <div className="mt-3">
+                    {/* <div className="mt-3">
                       <div className="flex flex-wrap gap-2">
                         {expense.expenseAccounts.map((expenseAccount) => (
                           <div 
@@ -109,7 +109,7 @@ async function ExpensesList({ page = 1, category }: { page?: number; category?: 
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </div> */}
                   </div>
                   
                   <div className="text-right">

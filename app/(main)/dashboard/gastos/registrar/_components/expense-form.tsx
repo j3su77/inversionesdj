@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm } from "react-hook-form";
+// import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
-import { Account, ExpenseCategory } from "@prisma/client";
+import { ExpenseCategory } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+// import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -25,9 +26,10 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CalendarIcon, Plus, Trash2, DollarSign } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
+// import { CalendarIcon, Plus, Trash2, DollarSign } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -42,7 +44,7 @@ import {
   getExpenseCategoryLabel,
 } from "@/lib/utils";
 import { createExpense } from "@/actions/expenses";
-import { formatCurrency } from "@/lib/utils";
+// import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 import { FormattedInput } from "@/components/ui/formatted-input";
 
@@ -62,49 +64,49 @@ const expenseCategories: ExpenseCategory[] = [
   "OTROS",
 ];
 
-const formSchema = z
-  .object({
-    name: z.string().min(1, "El nombre del gasto es requerido"),
-    description: z.string().optional(),
-    category: z.enum(
-      expenseCategories as [ExpenseCategory, ...ExpenseCategory[]]
-    ),
-    amount: z.coerce.number().positive("El monto debe ser mayor a 0"),
-    expenseDate: z.date({
-      required_error: "La fecha del gasto es requerida",
-    }),
-    notes: z.string().optional(),
-    accounts: z
-      .array(
-        z.object({
-          accountId: z.string().min(1, "Debe seleccionar una cuenta"),
-          amount: z.coerce.number().positive("El monto debe ser mayor a 0"),
-        })
-      )
-      .min(1, "Debe seleccionar al menos una cuenta"),
-  })
-  .refine(
-    (data) => {
-      const totalAccountAmount = data.accounts.reduce(
-        (sum, account) => sum + account.amount,
-        0
-      );
-      return Math.abs(totalAccountAmount - data.amount) < 0.01; // Permitir pequeñas diferencias por redondeo
-    },
-    {
-      message:
-        "La suma de los montos de las cuentas debe ser igual al monto total del gasto",
-      path: ["accounts"],
-    }
-  );
+const formSchema = z.object({
+  name: z.string().min(1, "El nombre del gasto es requerido"),
+  description: z.string().optional(),
+  category: z.enum(
+    expenseCategories as [ExpenseCategory, ...ExpenseCategory[]]
+  ),
+  amount: z.coerce.number().positive("El monto debe ser mayor a 0"),
+  expenseDate: z.date({
+    required_error: "La fecha del gasto es requerida",
+  }),
+  notes: z.string().optional(),
+  // accounts: z
+  //   .array(
+  //     z.object({
+  //       accountId: z.string().min(1, "Debe seleccionar una cuenta"),
+  //       amount: z.coerce.number().positive("El monto debe ser mayor a 0"),
+  //     })
+  //   )
+  //   .min(1, "Debe seleccionar al menos una cuenta"),
+});
+// .refine(
+//   (data) => {
+//     const totalAccountAmount = data.accounts.reduce(
+//       (sum, account) => sum + account.amount,
+//       0
+//     );
+//     return Math.abs(totalAccountAmount - data.amount) < 0.01; // Permitir pequeñas diferencias por redondeo
+//   },
+//   {
+//     message:
+//       "La suma de los montos de las cuentas debe ser igual al monto total del gasto",
+//     path: ["accounts"],
+//   }
+// );
 
 type FormData = z.infer<typeof formSchema>;
 
-interface ExpenseFormProps {
-  accounts: Account[];
-}
+// interface ExpenseFormProps {
+//   accounts: Account[];
+// }
 
-export function ExpenseForm({ accounts }: ExpenseFormProps) {
+// export function ExpenseForm({ accounts }: ExpenseFormProps) {
+export function ExpenseForm() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -117,31 +119,31 @@ export function ExpenseForm({ accounts }: ExpenseFormProps) {
       amount: 0,
       expenseDate: new Date(),
       notes: "",
-      accounts: [{ accountId: "", amount: 0 }],
+      // accounts: [{ accountId: "", amount: 0 }],
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "accounts",
-  });
+  // const { fields, append, remove } = useFieldArray({
+  //   control: form.control,
+  //   name: "accounts",
+  // });
 
-  const watchedAmount = form.watch("amount");
-  const watchedAccounts = form.watch("accounts");
+  // const watchedAmount = form.watch("amount");
+  // const watchedAccounts = form.watch("accounts");
 
   // Calcular el total distribuido en las cuentas
-  const totalDistributed = watchedAccounts.reduce(
-    (sum, account) => sum + (account.amount || 0),
-    0
-  );
-  const remaining = watchedAmount - totalDistributed;
+  // const totalDistributed = watchedAccounts.reduce(
+  //   (sum, account) => sum + (account.amount || 0),
+  //   0
+  // );
+  // const remaining = watchedAmount - totalDistributed;
 
   // Auto-distribuir el monto cuando solo hay una cuenta
   const handleAmountChange = (value: number) => {
     form.setValue("amount", value);
-    if (fields.length === 1 && fields[0]) {
-      form.setValue("accounts.0.amount", value);
-    }
+    // if (fields.length === 1 && fields[0]) {
+    //   form.setValue("accounts.0.amount", value);
+    // }
   };
 
   const onSubmit = async (data: FormData) => {
@@ -163,29 +165,29 @@ export function ExpenseForm({ accounts }: ExpenseFormProps) {
     }
   };
 
-  const addAccount = () => {
-    append({ accountId: "", amount: 0 });
-  };
+  // const addAccount = () => {
+  //   append({ accountId: "", amount: 0 });
+  // };
 
-  const removeAccount = (index: number) => {
-    if (fields.length > 1) {
-      remove(index);
-    }
-  };
+  // const removeAccount = (index: number) => {
+  //   if (fields.length > 1) {
+  //     remove(index);
+  //   }
+  // };
 
   // Distribuir el monto restante automáticamente
-  const distributeRemaining = () => {
-    if (remaining > 0 && fields.length > 0) {
-      const amountPerAccount = remaining / fields.length;
-      fields.forEach((_, index) => {
-        const currentAmount = form.getValues(`accounts.${index}.amount`) || 0;
-        form.setValue(
-          `accounts.${index}.amount`,
-          currentAmount + amountPerAccount
-        );
-      });
-    }
-  };
+  // const distributeRemaining = () => {
+  //   if (remaining > 0 && fields.length > 0) {
+  //     const amountPerAccount = remaining / fields.length;
+  //     fields.forEach((_, index) => {
+  //       const currentAmount = form.getValues(`accounts.${index}.amount`) || 0;
+  //       form.setValue(
+  //         `accounts.${index}.amount`,
+  //         currentAmount + amountPerAccount
+  //       );
+  //     });
+  //   }
+  // };
 
   return (
     <Form {...form}>
@@ -276,7 +278,6 @@ export function ExpenseForm({ accounts }: ExpenseFormProps) {
               disabled={isSubmitting}
             />
 
-
             <FormField
               control={form.control}
               name="expenseDate"
@@ -342,8 +343,8 @@ export function ExpenseForm({ accounts }: ExpenseFormProps) {
           </div>
         </div>
 
-        {/* Distribución por cuentas */}
-        <Card>
+        {/* Distribución por cuentas - Comentado para la primera etapa */}
+        {/* <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span className="flex items-center gap-2">
@@ -465,7 +466,7 @@ export function ExpenseForm({ accounts }: ExpenseFormProps) {
               </p>
             )}
           </CardContent>
-        </Card>
+        </Card> */}
 
         {/* Botones de acción */}
         <div className="flex gap-4 justify-end">

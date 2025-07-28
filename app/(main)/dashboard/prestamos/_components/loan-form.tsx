@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+// import { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -40,13 +40,13 @@ import {
   InterestType,
   Loan,
   PaymentFrequency,
-  Account,
+  // Account,
 } from "@prisma/client";
 import {
-  AccountSelector,
-  AccountSelection,
+  // AccountSelector,
+  // AccountSelection,
 } from "@/components/ui/account-selector";
-import { getAccounts } from "@/actions/accounts";
+// import { getAccounts } from "@/actions/accounts";
 import { ChangeFrequencyForm } from "./change-frequency-form";
 
 interface LoanFormProps {
@@ -76,29 +76,29 @@ const formSchema = z
     }),
     paymentFrequency: z.nativeEnum(PaymentFrequency),
     notes: z.string().optional().nullable(),
-    accounts: z
-      .array(
-        z.object({
-          accountId: z.string(),
-          amount: z.number().positive("El monto debe ser mayor a 0"),
-        })
-      )
-      .min(1, "Debe seleccionar al menos una cuenta"),
+    // accounts: z
+    //   .array(
+    //     z.object({
+    //       accountId: z.string(),
+    //       amount: z.number().positive("El monto debe ser mayor a 0"),
+    //     })
+    //   )
+    //   .min(1, "Debe seleccionar al menos una cuenta"),
   })
-  .refine(
-    (data) => {
-      const totalAssigned = data.accounts.reduce(
-        (sum, acc) => sum + acc.amount,
-        0
-      );
-      return Math.abs(totalAssigned - data.totalAmount) < 0.01;
-    },
-    {
-      message:
-        "El total asignado a las cuentas debe coincidir con el monto del préstamo",
-      path: ["accounts"],
-    }
-  );
+  // .refine(
+  //   (data) => {
+  //     const totalAssigned = data.accounts.reduce(
+  //       (sum, acc) => sum + acc.amount,
+  //       0
+  //     );
+  //     return Math.abs(totalAssigned - data.totalAmount) < 0.01;
+  //   },
+  //   {
+  //     message:
+  //       "El total asignado a las cuentas debe coincidir con el monto del préstamo",
+  //     path: ["accounts"],
+  //   }
+  // );
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -118,10 +118,10 @@ const interestTypeOptions = [
 export function LoanForm({ client, loan, disabled }: LoanFormProps) {
   const router = useRouter();
   const isEdit = Boolean(loan);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [selectedAccounts, setSelectedAccounts] = useState<AccountSelection[]>(
-    []
-  );
+  // const [accounts, setAccounts] = useState<Account[]>([]);
+  // const [selectedAccounts, setSelectedAccounts] = useState<AccountSelection[]>(
+  //   []
+  // );
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -133,35 +133,35 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
       startDate: loan?.startDate || new Date(),
       paymentFrequency: loan?.paymentFrequency || "MONTHLY",
       notes: loan?.notes || "",
-      accounts: [],
+      // accounts: [],
     },
     mode: "onChange"
   });
 
   const { isSubmitting, isValid } = form.formState;
-  const totalAmount = form.watch("totalAmount");
+  // const totalAmount = form.watch("totalAmount");
 
   // Cargar cuentas disponibles
-  useEffect(() => {
-    const loadAccounts = async () => {
-      try {
-        const accountsData = await getAccounts();
-        setAccounts(accountsData);
-      } catch (error) {
-        console.error("Error loading accounts:", error);
-        toast.error("Error al cargar las cuentas");
-      }
-    };
-    loadAccounts();
-  }, []);
+  // useEffect(() => {
+  //   const loadAccounts = async () => {
+  //     try {
+  //       const accountsData = await getAccounts();
+  //       setAccounts(accountsData);
+  //     } catch (error) {
+  //       console.error("Error loading accounts:", error);
+  //       toast.error("Error al cargar las cuentas");
+  //     }
+  //   };
+  //   loadAccounts();
+  // }, []);
 
   // Actualizar el formulario cuando cambien las cuentas seleccionadas
-  useEffect(() => {
-    form.setValue("accounts", selectedAccounts);
-    // Forzar revalidación completa del formulario para actualizar el estado isValid
-    // Esto es necesario para que la validación personalizada (refine) también se ejecute
-    form.trigger();
-  }, [selectedAccounts, form]);
+  // useEffect(() => {
+  //   form.setValue("accounts", selectedAccounts);
+  //   // Forzar revalidación completa del formulario para actualizar el estado isValid
+  //   // Esto es necesario para que la validación personalizada (refine) también se ejecute
+  //   form.trigger();
+  // }, [selectedAccounts, form]);
 
   const onSubmit = async (values: FormValues) => {
     if (disabled) return;
@@ -399,8 +399,8 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
             />
           </div>
 
-          {/* Selector de Cuentas - Solo para nuevos préstamos */}
-          {!isEdit && totalAmount > 0 && (
+          {/* Selector de Cuentas - Comentado para la primera etapa */}
+          {/* {!isEdit && totalAmount > 0 && (
             <FormField
               control={form.control}
               name="accounts"
@@ -416,7 +416,7 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
                 </FormItem>
               )}
             />
-          )}
+          )} */}
 
           <Button
             type="submit"

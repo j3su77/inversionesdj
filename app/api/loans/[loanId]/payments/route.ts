@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { LoanStatus } from "@prisma/client";
 
-interface AccountSelection {
-  accountId: string;
-  amount: number;
-}
+// interface AccountSelection {
+//   accountId: string;
+//   amount: number;
+// }
 
 export async function POST(
   req: Request,
@@ -21,49 +21,49 @@ export async function POST(
       notes,
       capitalAmount,
       interestAmount,
-      accounts,
+      // accounts,
     }: {
       paymentDate: string;
       nextPaymentDate: string;
       notes?: string;
       capitalAmount: number;
       interestAmount: number;
-      accounts: AccountSelection[];
+      // accounts: AccountSelection[];
     } = body;
 
     // Validar que se hayan proporcionado cuentas
-    if (!accounts || !Array.isArray(accounts) || accounts.length === 0) {
-      return new NextResponse("Debe seleccionar al menos una cuenta de destino", { status: 400 });
-    }
+    // if (!accounts || !Array.isArray(accounts) || accounts.length === 0) {
+    //   return new NextResponse("Debe seleccionar al menos una cuenta de destino", { status: 400 });
+    // }
 
     // Validar que el total de las cuentas coincida con el monto del pago
-    const totalAccountAmount = accounts.reduce((sum: number, acc: AccountSelection) => sum + acc.amount, 0);
-    const expectedAmount = capitalAmount + interestAmount;
+    // const totalAccountAmount = accounts.reduce((sum: number, acc: AccountSelection) => sum + acc.amount, 0);
+    // const expectedAmount = capitalAmount + interestAmount;
     
-    if (Math.abs(totalAccountAmount - expectedAmount) > 2.0) {
-      return new NextResponse("El total asignado a las cuentas debe coincidir con el monto del pago (tolerancia de ±2 pesos)", { status: 400 });
-    }
+    // if (Math.abs(totalAccountAmount - expectedAmount) > 2.0) {
+    //   return new NextResponse("El total asignado a las cuentas debe coincidir con el monto del pago (tolerancia de ±2 pesos)", { status: 400 });
+    // }
 
     // Verificar que todas las cuentas existan y tengan saldo suficiente
-    const accountIds = accounts.map((acc: AccountSelection) => acc.accountId);
-    const accountsData = await prisma.account.findMany({
-      where: {
-        id: { in: accountIds },
-        isActive: true,
-      },
-    });
+    // const accountIds = accounts.map((acc: AccountSelection) => acc.accountId);
+    // const accountsData = await prisma.account.findMany({
+    //   where: {
+    //     id: { in: accountIds },
+    //     isActive: true,
+    //   },
+    // });
 
-    if (accountsData.length !== accountIds.length) {
-      return new NextResponse("Una o más cuentas no existen o están inactivas", { status: 400 });
-    }
+    // if (accountsData.length !== accountIds.length) {
+    //   return new NextResponse("Una o más cuentas no existen o están inactivas", { status: 400 });
+    // }
 
     // Validar saldos suficientes
-    for (const accountSelection of accounts) {
-      const accountData = accountsData.find(acc => acc.id === accountSelection.accountId);
-      if (!accountData || accountData.balance < accountSelection.amount) {
-        return new NextResponse(`Saldo insuficiente en la cuenta ${accountData?.name || 'desconocida'}`, { status: 400 });
-      }
-    }
+    // for (const accountSelection of accounts) {
+    //   const accountData = accountsData.find(acc => acc.id === accountSelection.accountId);
+    //   if (!accountData || accountData.balance < accountSelection.amount) {
+    //     return new NextResponse(`Saldo insuficiente en la cuenta ${accountData?.name || 'desconocida'}`, { status: 400 });
+    //   }
+    // }
 
     // Obtener el préstamo actual y sus pagos
     const loan = await prisma.loan.findUnique({
@@ -189,16 +189,16 @@ export async function POST(
       });
 
       // 2. Actualizar los saldos de las cuentas
-      for (const accountSelection of accounts) {
-        await tx.account.update({
-          where: { id: accountSelection.accountId },
-          data: {
-            balance: {
-              increment: accountSelection.amount,
-            },
-          },
-        });
-      }
+      // for (const accountSelection of accounts) {
+      //   await tx.account.update({
+      //     where: { id: accountSelection.accountId },
+      //     data: {
+      //       balance: {
+      //         increment: accountSelection.amount,
+      //       },
+      //     },
+      //   });
+      // }
 
       // 3. Actualizar el préstamo
       const updatedLoan = await tx.loan.update({

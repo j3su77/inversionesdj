@@ -27,12 +27,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Expense, ExpenseAccount, Account } from "@prisma/client";
+import { Expense } from "@prisma/client";
+// import { ExpenseAccount, Account } from "@prisma/client";
 import { formatCurrency } from "@/lib/utils";
 
 interface DeleteExpenseDialogProps {
   expense: Expense & {
-    expenseAccounts: (ExpenseAccount & { account: Account })[];
+    // expenseAccounts: (ExpenseAccount & { account: Account })[];
   };
   trigger?: React.ReactNode;
 }
@@ -76,7 +77,8 @@ export function DeleteExpenseDialog({ expense, trigger }: DeleteExpenseDialogPro
       await response.json();
       
       toast.success("Gasto eliminado exitosamente", {
-        description: "El dinero ha sido devuelto a las cuentas correspondientes",
+        // description: "El dinero ha sido devuelto a las cuentas correspondientes",
+        description: "El gasto ha sido eliminado exitosamente",
       });
       
       setIsOpen(false);
@@ -126,7 +128,7 @@ export function DeleteExpenseDialog({ expense, trigger }: DeleteExpenseDialogPro
           </DialogHeader>
 
           {/* Mostrar información de las cuentas que recibirán el dinero de vuelta */}
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+          {/* <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
             <h4 className="font-medium text-blue-900 mb-2">
               💰 Dinero que será devuelto a las cuentas:
             </h4>
@@ -143,7 +145,7 @@ export function DeleteExpenseDialog({ expense, trigger }: DeleteExpenseDialogPro
                 </div>
               ))}
             </div>
-          </div>
+          </div> */}
 
           <div className="space-y-4">
             <div className="space-y-2">
@@ -205,9 +207,9 @@ export function DeleteExpenseDialog({ expense, trigger }: DeleteExpenseDialogPro
           <AlertDialogHeader>
             <AlertDialogTitle>¿Estás completamente seguro?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción marcará el gasto como eliminado y devolverá el dinero a las cuentas 
-              correspondientes. El gasto no aparecerá en la lista pero se mantendrá en el 
-              historial para auditoría.
+              Esta acción marcará el gasto como eliminado.
+              {/* El gasto no aparecerá en la lista pero se mantendrá en el 
+              historial para auditoría. */}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -217,10 +219,15 @@ export function DeleteExpenseDialog({ expense, trigger }: DeleteExpenseDialogPro
             <AlertDialogAction
               onClick={handleConfirmDelete}
               disabled={isLoading}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Sí, eliminar gasto
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Eliminando...
+                </>
+              ) : (
+                "Sí, eliminar"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
