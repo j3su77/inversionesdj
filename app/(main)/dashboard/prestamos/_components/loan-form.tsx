@@ -187,6 +187,7 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
         }
 
         const data = await response.json();
+        console.log({prestamo: data});
         router.push(`/dashboard/prestamos/gestionar/${data.id}`);
         toast.success("Préstamo creado correctamente");
       }

@@ -63,8 +63,8 @@ const formSchema = z.object({
   }),
   companyName: z.string().optional(),
   workplace: z.string().optional(),
-  monthlyIncome: z.coerce.number(),
-  companyTenure: z.number().optional(),
+  monthlyIncome: z.coerce.number().optional(),
+  companyTenure: z.coerce.number().optional(),
   currentPosition: z.string().optional(),
   isDisallowed: z.boolean(),
 });
@@ -91,7 +91,7 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
     resolver: zodResolver(formSchema),
     defaultValues: {
       fullName: client?.fullName ?? "",
-      identification: client?.identification ?? 0,
+      identification: client?.identification ?? undefined,
       address: client?.address ?? "",
       phone: client?.phone ?? "",
       cellphone: client?.cellphone ?? "",
@@ -103,8 +103,8 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
       isDisallowed: client?.isDisallowed ?? false,
       companyName: client?.companyName ?? "",
       workplace: client?.workplace ?? "",
-      monthlyIncome: client?.monthlyIncome ?? 0,
-      companyTenure: client?.companyTenure ?? 0,
+      monthlyIncome: client?.monthlyIncome ?? undefined,
+      companyTenure: client?.companyTenure ?? undefined,
       currentPosition: client?.currentPosition ?? "",
     },
   });
@@ -194,6 +194,13 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
                             type="number"
                             disabled={isSubmitting}
                             {...field}
+                            value={field.value ?? ""}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              field.onChange(
+                                value === "" ? undefined : Number(value)
+                              );
+                            }}
                           />
                         </FormControl>
                         <FormMessage />
@@ -403,9 +410,13 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
                             type="number"
                             disabled={isSubmitting}
                             {...field}
-                            onChange={(e) =>
-                              field.onChange(Number(e.target.value))
-                            }
+                            value={field.value ?? ""}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              field.onChange(
+                                value === "" ? undefined : Number(value)
+                              );
+                            }}
                           />
                         </FormControl>
                         <FormMessage />
@@ -423,9 +434,13 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
                             type="number"
                             disabled={isSubmitting}
                             {...field}
-                            onChange={(e) =>
-                              field.onChange(Number(e.target.value))
-                            }
+                            value={field.value ?? ""}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              field.onChange(
+                                value === "" ? undefined : Number(value)
+                              );
+                            }}
                           />
                         </FormControl>
                         <FormMessage />

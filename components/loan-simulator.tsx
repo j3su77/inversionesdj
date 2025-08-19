@@ -38,7 +38,7 @@ interface LoanConfig {
   installments: number;
   interestRate: number;
   interestType: "FIXED" | "DECREASING";
-  paymentFrequency: "DAILY" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
+  paymentFrequency: "DAILY" | "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "QUARTERLY";
 }
 
 interface PaymentSchedule {
@@ -62,6 +62,7 @@ const paymentFrequencyOptions = [
   { label: "Semanal", value: "WEEKLY" },
   { label: "Quincenal", value: "BIWEEKLY" },
   { label: "Mensual", value: "MONTHLY" },
+  { label: "Trimestral", value: "QUARTERLY" },
 ];
 
 const interestTypeOptions = [
@@ -100,6 +101,8 @@ export const LoanSimulator = () => {
         return 15;
       case "MONTHLY":
         return 30;
+      case "QUARTERLY":
+        return 90;
       default:
         return 30;
     }
@@ -140,7 +143,28 @@ export const LoanSimulator = () => {
 
     if (interestType === "FIXED") {
       // Para interés fijo: interés total = monto * tasa
-      fixedInterestAmount = totalAmount * (interestRate / 100);
+      const baseInterestAmount = totalAmount * (interestRate / 100);
+      
+      // Ajustar el interés según la frecuencia de pago
+      switch (paymentFrequency) {
+        case "DAILY":
+          fixedInterestAmount = baseInterestAmount / 30;
+          break;
+        case "WEEKLY":
+          fixedInterestAmount = baseInterestAmount / 4;
+          break;
+        case "BIWEEKLY":
+          fixedInterestAmount = baseInterestAmount / 2;
+          break;
+        case "MONTHLY":
+          fixedInterestAmount = baseInterestAmount; // Se mantiene igual
+          break;
+        case "QUARTERLY":
+          fixedInterestAmount = baseInterestAmount * 3;
+          break;
+        default:
+          fixedInterestAmount = baseInterestAmount;
+      }
     }
 
     for (let i = 1; i <= installments; i++) {
@@ -152,8 +176,32 @@ export const LoanSimulator = () => {
         interestAmount = fixedInterestAmount;
         capitalAmount = baseCapitalAmount;
       } else {
-        // Interés decreciente sobre saldo pendiente
-        interestAmount = remainingBalance * (interestRate / 100);
+        // Interés decreciente sobre saldo pendiente, ajustado según frecuencia
+        const baseInterest = remainingBalance * (interestRate / 100);
+        let adjustedInterest = baseInterest;
+        
+        // Ajustar el interés según la frecuencia
+        switch (paymentFrequency) {
+          case "DAILY":
+            adjustedInterest = baseInterest / 30;
+            break;
+          case "WEEKLY":
+            adjustedInterest = baseInterest / 4;
+            break;
+          case "BIWEEKLY":
+            adjustedInterest = baseInterest / 2;
+            break;
+          case "MONTHLY":
+            adjustedInterest = baseInterest;
+            break;
+          case "QUARTERLY":
+            adjustedInterest = baseInterest * 3;
+            break;
+          default:
+            adjustedInterest = baseInterest;
+        }
+        
+        interestAmount = adjustedInterest;
         capitalAmount = baseCapitalAmount;
       }
 

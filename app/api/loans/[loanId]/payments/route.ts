@@ -78,6 +78,7 @@ export async function POST(
         fixedInterestAmount: true,
         interestType: true,
         interestRate: true,
+        paymentFrequency: true,
         currentInstallmentAmount: true,
         payments: {
           orderBy: {
@@ -110,14 +111,34 @@ export async function POST(
       );
     }
 
+    // Función para ajustar el interés según la frecuencia de pago
+    const adjustInterestByFrequency = (baseInterest: number, frequency: string): number => {
+      switch (frequency) {
+        case "DAILY":
+          return baseInterest / 30;
+        case "WEEKLY":
+          return baseInterest / 4;
+        case "BIWEEKLY":
+          return baseInterest / 2;
+        case "MONTHLY":
+          return baseInterest; // Se mantiene igual
+        case "QUARTERLY":
+          return baseInterest * 3;
+        default:
+          return baseInterest;
+      }
+    };
+
     // Calcular el interés de la cuota actual (incluye interés pendiente acumulado)
     let currentInterest = 0;
     if (loan.interestType === "FIXED") {
       currentInterest =
         (loan.fixedInterestAmount || 0) + (loan.pendingInterest || 0);
     } else {
-      currentInterest =
-        loan.balance * (loan.interestRate / 100) + (loan.pendingInterest || 0);
+      // Para interés decreciente, calcular el interés base y ajustarlo por frecuencia
+      const baseInterest = loan.balance * (loan.interestRate / 100);
+      const adjustedInterest = adjustInterestByFrequency(baseInterest, loan.paymentFrequency);
+      currentInterest = adjustedInterest + (loan.pendingInterest || 0);
     }
 
     // Usar directamente los montos proporcionados por el frontend
@@ -159,7 +180,11 @@ export async function POST(
     const nextInterest =
       loan.interestType === "FIXED"
         ? loan.fixedInterestAmount || 0
-        : adjustedNewBalance * (loan.interestRate / 100);
+        : (() => {
+            // Para interés decreciente, calcular sobre el nuevo saldo y ajustar por frecuencia
+            const baseNextInterest = adjustedNewBalance * (loan.interestRate / 100);
+            return adjustInterestByFrequency(baseNextInterest, loan.paymentFrequency);
+          })();
     const nextInstallmentAmount =
       baseCapitalAmount + nextInterest + newPendingInterest;
 

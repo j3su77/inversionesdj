@@ -44,6 +44,24 @@ interface PaymentFormProps {
   onSuccess?: () => void;
 }
 
+// Función para ajustar el interés según la frecuencia de pago
+const adjustInterestByFrequency = (baseInterest: number, frequency: string): number => {
+  switch (frequency) {
+    case "DAILY":
+      return baseInterest / 30;
+    case "WEEKLY":
+      return baseInterest / 4;
+    case "BIWEEKLY":
+      return baseInterest / 2;
+    case "MONTHLY":
+      return baseInterest; // Se mantiene igual
+    case "QUARTERLY":
+      return baseInterest * 3;
+    default:
+      return baseInterest;
+  }
+};
+
 export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
   const router = useRouter();
   // const [accounts, setAccounts] = useState<Account[]>([]);
@@ -59,7 +77,12 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
   const currentInterest = Math.round(
     loan.interestType === InterestType.FIXED
       ? (loan.fixedInterestAmount || 0) + (loan.pendingInterest || 0)
-      : loan.balance * (loan.interestRate / 100) + (loan.pendingInterest || 0)
+      : (() => {
+          // Para interés decreciente, calcular el interés base y ajustarlo por frecuencia
+          const baseInterest = loan.balance * (loan.interestRate / 100);
+          const adjustedInterest = adjustInterestByFrequency(baseInterest, loan.paymentFrequency);
+          return adjustedInterest + (loan.pendingInterest || 0);
+        })()
   );
   // Calcular el monto total de la cuota actual
   const currentInstallmentAmount =
@@ -155,8 +178,12 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
     const interest =
       loan.interestType === InterestType.FIXED
         ? (loan.fixedInterestAmount || 0) + (loan.pendingInterest || 0)
-        : loan.balance * (loan.interestRate / 100) +
-          (loan.pendingInterest || 0);
+        : (() => {
+            // Para interés decreciente, calcular el interés base y ajustarlo por frecuencia
+            const baseInterest = loan.balance * (loan.interestRate / 100);
+            const adjustedInterest = adjustInterestByFrequency(baseInterest, loan.paymentFrequency);
+            return adjustedInterest + (loan.pendingInterest || 0);
+          })();
     const total = capital + interest;
     return { capital, interest, total };
   });
@@ -236,11 +263,13 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
     interestAmountNumber: Number(interestAmount || 0),
   });
 
-  // Actualizar el capital cuando cambia el tipo de interés
+  // Actualizar el capital e interés cuando cambia el tipo de interés o frecuencia
   useEffect(() => {
     form.setValue("capitalAmount", baseCapitalAmount);
+    form.setValue("interestAmount", currentInterest);
   }, [
     loan.interestType,
+    loan.paymentFrequency,
     currentInstallmentAmount,
     baseCapitalAmount,
     form,
@@ -460,6 +489,16 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
             <strong>¡Atención!</strong> Tienes interés pendiente acumulado de{" "}
             {formatCurrency({ value: loan.pendingInterest, symbol: true })}.
             Este valor se sumará al interés de la cuota actual.
+            {loan.interestType === InterestType.DECREASING && (
+              <div className="mt-2 text-sm">
+                <div>• Interés de cuota actual (sobre saldo): {formatCurrency({ 
+                  value: Math.round(adjustInterestByFrequency(loan.balance * (loan.interestRate / 100), loan.paymentFrequency)), 
+                  symbol: true 
+                })}</div>
+                <div>• Interés pendiente de cuotas anteriores: {formatCurrency({ value: loan.pendingInterest, symbol: true })}</div>
+                <div className="font-semibold">• Total interés a pagar: {formatCurrency({ value: currentInterest, symbol: true })}</div>
+              </div>
+            )}
           </div>
         )}
         <Form {...form}>

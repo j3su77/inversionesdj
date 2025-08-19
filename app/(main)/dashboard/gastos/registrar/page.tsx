@@ -14,7 +14,8 @@ async function ExpenseFormContent() {
     console.error("Error loading accounts:", error);
     return (
       <div className="text-center text-red-600">
-        Error al cargar las cuentas. Por favor, intenta de nuevo.
+        Error al cargar las +0
+         r34 Por favor, intenta de nuevo.
       </div>
     );
   }

@@ -68,11 +68,10 @@ export const getClientsByStatus = async (status: ClientStatusFilter): Promise<Cl
     switch (status) {
         case "active":
             baseWhere.AND = [
-                { status: ClientStatus.ACTIVE },
                 { isDisallowed: false },
                 {
                     OR: [
-                        // Clientes con préstamos activos
+                        // Clientes con préstamos activos o pendientes
                         {
                             loans: {
                                 some: {
@@ -80,9 +79,31 @@ export const getClientsByStatus = async (status: ClientStatusFilter): Promise<Cl
                                 }
                             }
                         },
-                        // Clientes sin préstamos pero activos
+                        // Clientes con préstamos creados en los últimos 365 días
                         {
-                            loans: { none: {} }
+                            loans: {
+                                some: {
+                                    createdAt: { gte: oneYearAgo }
+                                }
+                            }
+                        },
+                        // Clientes registrados en los últimos 365 días (sin préstamos o con préstamos antiguos)
+                        {
+                            AND: [
+                                { createdAt: { gte: oneYearAgo } },
+                                {
+                                    OR: [
+                                        { loans: { none: {} } },
+                                        {
+                                            loans: {
+                                                every: {
+                                                    createdAt: { lt: oneYearAgo }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
                         }
                     ]
                 }
@@ -91,23 +112,27 @@ export const getClientsByStatus = async (status: ClientStatusFilter): Promise<Cl
 
         case "inactive":
             baseWhere.AND = [
-                { status: ClientStatus.INACTIVE },
+                { isDisallowed: false },
+                {
+                    // Cliente registrado hace más de 365 días
+                    createdAt: { lt: oneYearAgo }
+                },
                 {
                     OR: [
-                        // Sin préstamos en el último año
-                        {
-                            loans: {
-                                every: {
-                                    OR: [
-                                        { createdAt: { lt: oneYearAgo } },
-                                        { status: LoanStatus.COMPLETED }
-                                    ]
-                                }
-                            }
-                        },
                         // Sin préstamos
                         {
                             loans: { none: {} }
+                        },
+                        // Todos los préstamos fueron creados hace más de 365 días y no están activos
+                        {
+                            loans: {
+                                every: {
+                                    AND: [
+                                        { createdAt: { lt: oneYearAgo } },
+                                        { status: { notIn: [LoanStatus.ACTIVE, LoanStatus.PENDING] } }
+                                    ]
+                                }
+                            }
                         }
                     ]
                 }
