@@ -39,86 +39,116 @@ export async function POST(req: Request) {
     //     )
     // }
 
+    // Normalizar la fecha de inicio para evitar problemas de zona horaria
+    // Asegurarse de que la fecha se interprete correctamente (solo fecha, sin hora)
+    const normalizedStartDate = new Date(startDate);
+    normalizedStartDate.setHours(0, 0, 0, 0); // Establecer a medianoche para evitar problemas de zona horaria
+
     // Calcular la fecha de finalización basada en la frecuencia de pagos
-    let endDate = new Date(startDate);
+    let endDate = new Date(normalizedStartDate);
 
     // Calcular la fecha del próximo pago basándose en la frecuencia
-    let nextPaymentDate = new Date(startDate);
+    let nextPaymentDate = new Date(normalizedStartDate);
 
     // El monto de la cuota base (capital) es el mismo para ambos tipos
     const baseFeeAmount = totalAmount / installments;
 
-    // Calcular el interés base
-    const baseInterestAmount = totalAmount * (interestRate / 100);
+    // Función auxiliar para calcular los días del período programado basado en la frecuencia
+    // Para pagos diarios, semanales y quincenales: usar 30 días como base fija
+    // Para pagos mensuales y trimestrales: calcular días reales entre fechas programadas
+    const getDaysInPeriod = (
+      referenceDate: Date,
+      paymentFrequency: string
+    ): number => {
+      // Para pagos diarios, semanales y quincenales, usar 30 días como base
+      if (paymentFrequency === "DAILY" || paymentFrequency === "WEEKLY" || paymentFrequency === "BIWEEKLY") {
+        return 30;
+      }
+      
+      // Para pagos mensuales y trimestrales, calcular días reales
+      const normalizedRef = new Date(referenceDate);
+      normalizedRef.setHours(0, 0, 0, 0);
+      
+      // Calcular la fecha del próximo pago programado según la frecuencia
+      const nextProgrammedDate = new Date(normalizedRef);
+      
+      switch (paymentFrequency) {
+        case "MONTHLY":
+          // Mantener el mismo día del mes (ej: 15 de enero -> 15 de febrero)
+          nextProgrammedDate.setMonth(nextProgrammedDate.getMonth() + 1);
+          break;
+        case "QUARTERLY":
+          nextProgrammedDate.setMonth(nextProgrammedDate.getMonth() + 3);
+          break;
+        default:
+          nextProgrammedDate.setMonth(nextProgrammedDate.getMonth() + 1);
+      }
+      
+      // Calcular los días reales entre las fechas
+      const daysDiff = Math.floor(
+        (nextProgrammedDate.getTime() - normalizedRef.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      
+      return Math.max(1, daysDiff);
+    };
 
-    // Ajustar el interés según la frecuencia de pago
-    let adjustedInterestAmount = baseInterestAmount;
-    switch (paymentFrequency) {
-      case "DAILY":
-        adjustedInterestAmount = baseInterestAmount / 30;
-        break;
-      case "WEEKLY":
-        adjustedInterestAmount = baseInterestAmount / 4;
-        break;
-      case "BIWEEKLY":
-        adjustedInterestAmount = baseInterestAmount / 2;
-        break;
-      case "MONTHLY":
-        adjustedInterestAmount = baseInterestAmount; // Se mantiene igual
-        break;
-      case "QUARTERLY":
-        adjustedInterestAmount = baseInterestAmount * 3; // Se multiplica por 3
-        break;
-      default:
-        adjustedInterestAmount = baseInterestAmount;
-    }
+    // Función para calcular el interés según días transcurridos
+    // Interés mensual = monto * tasa / 100
+    // Interés para el período = interés mensual * (días transcurridos / días del período programado)
+    const calculateInterestByDays = (
+      amount: number,
+      interestRate: number,
+      daysElapsed: number,
+      daysInPeriod: number
+    ): number => {
+      const monthlyInterest = amount * (interestRate / 100);
+      // Calcular el interés proporcional basado en los días reales del período
+      return (monthlyInterest / daysInPeriod) * daysElapsed;
+    };
+
+    // Calcular los días reales del período programado basado en la frecuencia
+    const daysInPeriod = getDaysInPeriod(normalizedStartDate, paymentFrequency);
+    
+    // Calcular el interés ajustado según la frecuencia de pago usando días reales
+    const adjustedInterestAmount = calculateInterestByDays(
+      totalAmount, 
+      interestRate, 
+      daysInPeriod, 
+      daysInPeriod
+    );
 
     // Para interés fijo:
     // - Cada cuota incluye el pago de capital (baseFeeAmount)
     // - MÁS el interés ajustado según frecuencia (adjustedInterestAmount)
     // Para interés decreciente:
     // - El feeAmount es solo el capital base (baseFeeAmount)
-    // - El interés se calcula dinámicamente sobre el saldo actual en cada cuota
+    // - El interés se calcula dinámicamente sobre el saldo actual en cada cuota según días transcurridos
+    
+    // Para FIXED: almacenar el interés por día * días de frecuencia para referencia
+    // Nota: El interés real se calculará dinámicamente según días transcurridos en cada pago
     const fixedInterestAmount =
       interestType === "FIXED" ? adjustedInterestAmount : null;
     
     // Calcular el interés inicial para préstamos decrecientes (sobre el saldo total)
-    const initialDecreasingInterest = totalAmount * (interestRate / 100);
-    let adjustedDecreasingInterest = initialDecreasingInterest;
+    const initialDecreasingInterest = calculateInterestByDays(
+      totalAmount, 
+      interestRate, 
+      daysInPeriod, 
+      daysInPeriod
+    );
     
-    // Ajustar el interés decreciente según la frecuencia
-    switch (paymentFrequency) {
-      case "DAILY":
-        adjustedDecreasingInterest = initialDecreasingInterest / 30;
-        break;
-      case "WEEKLY":
-        adjustedDecreasingInterest = initialDecreasingInterest / 4;
-        break;
-      case "BIWEEKLY":
-        adjustedDecreasingInterest = initialDecreasingInterest / 2;
-        break;
-      case "MONTHLY":
-        adjustedDecreasingInterest = initialDecreasingInterest;
-        break;
-      case "QUARTERLY":
-        adjustedDecreasingInterest = initialDecreasingInterest * 3;
-        break;
-      default:
-        adjustedDecreasingInterest = initialDecreasingInterest;
-    }
-    
-    // Para FIXED: cuota = capital + interés fijo
-    // Para DECREASING: cuota base = solo capital (el interés se calcula dinámicamente)
+    // Para FIXED: cuota = capital + interés estimado (se calculará dinámicamente en cada pago)
+    // Para DECREASING: cuota base = solo capital (el interés se calcula dinámicamente según días)
     const baseFee = 
       interestType === "FIXED"
-        ? baseFeeAmount + adjustedInterestAmount // Capital + interés fijo
+        ? baseFeeAmount + adjustedInterestAmount // Capital + interés estimado
         : baseFeeAmount; // Solo capital para préstamos decrecientes
         
-    // Para la primera cuota de préstamos decrecientes, incluir el interés inicial
+    // Para la primera cuota, incluir el interés estimado
     const firstInstallmentAmount = 
       interestType === "FIXED"
-        ? baseFee // Para FIXED es siempre igual
-        : baseFeeAmount + adjustedDecreasingInterest; // Para DECREASING: capital + interés de primera cuota
+        ? baseFee // Para FIXED es capital + interés estimado
+        : baseFeeAmount + initialDecreasingInterest; // Para DECREASING: capital + interés estimado
 
     // El balance inicial es diferente para cada tipo
     const initialBalance = totalAmount;
@@ -196,7 +226,7 @@ export async function POST(req: Request) {
                 paymentFrequency,
                 feeAmount: baseFee,
                 fixedInterestAmount,
-                startDate: new Date(startDate),
+                startDate: normalizedStartDate,
                 endDate,
                 nextPaymentDate,
                 notes,
@@ -217,7 +247,7 @@ export async function POST(req: Request) {
                 paymentFrequency,
                 feeAmount: baseFee,
                 fixedInterestAmount,
-                startDate: new Date(startDate),
+                startDate: normalizedStartDate,
                 endDate,
                 nextPaymentDate,
                 notes,

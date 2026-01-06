@@ -30,7 +30,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn, formatCurrency } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loan, InterestType } from "@prisma/client";
+import { Loan, InterestType, Payment } from "@prisma/client";
 import { FormattedInput } from "@/components/ui/formatted-input";
 import {
   // PaymentAccountSelector,
@@ -40,26 +40,26 @@ import {
 import { calculateNextPaymentDate } from "@/actions/loans";
 
 interface PaymentFormProps {
-  loan: Loan;
+  loan: Loan & { payments?: Payment[] };
   onSuccess?: () => void;
 }
 
-// Función para ajustar el interés según la frecuencia de pago
-const adjustInterestByFrequency = (baseInterest: number, frequency: string): number => {
-  switch (frequency) {
-    case "DAILY":
-      return baseInterest / 30;
-    case "WEEKLY":
-      return baseInterest / 4;
-    case "BIWEEKLY":
-      return baseInterest / 2;
-    case "MONTHLY":
-      return baseInterest; // Se mantiene igual
-    case "QUARTERLY":
-      return baseInterest * 3;
-    default:
-      return baseInterest;
-  }
+// Función para calcular el interés diario
+// Interés mensual = monto * tasa / 100
+// Interés diario = interés mensual / 30
+const calculateDailyInterest = (amount: number, interestRate: number): number => {
+  const monthlyInterest = amount * (interestRate / 100);
+  return monthlyInterest / 30;
+};
+
+// Función para calcular el interés según días transcurridos
+const calculateInterestByDays = (
+  amount: number,
+  interestRate: number,
+  days: number
+): number => {
+  const dailyInterest = calculateDailyInterest(amount, interestRate);
+  return dailyInterest * days;
 };
 
 export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
@@ -73,23 +73,48 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
 
   // Calcular el monto base de capital por cuota
   const baseCapitalAmount = Math.round(loan.totalAmount / loan.installments);
-  // Calcular el interés actual (incluye interés pendiente acumulado)
-  const currentInterest = Math.round(
-    loan.interestType === InterestType.FIXED
-      ? (loan.fixedInterestAmount || 0) + (loan.pendingInterest || 0)
-      : (() => {
-          // Para interés decreciente, calcular el interés base y ajustarlo por frecuencia
-          const baseInterest = loan.balance * (loan.interestRate / 100);
-          const adjustedInterest = adjustInterestByFrequency(baseInterest, loan.paymentFrequency);
-          return adjustedInterest + (loan.pendingInterest || 0);
-        })()
-  );
-  // Calcular el monto total de la cuota actual
-  const currentInstallmentAmount =
-    loan.currentInstallmentAmount ||
-    (loan.interestType === InterestType.FIXED
-      ? loan.feeAmount + (loan.pendingInterest || 0)
-      : baseCapitalAmount + currentInterest);
+  
+  // Función para normalizar una fecha (establecer a medianoche para evitar problemas de zona horaria)
+  const normalizeDate = (date: Date | string): Date => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  // Función para calcular el interés basado en días transcurridos
+  const calculateCurrentInterest = (paymentDate: Date): number => {
+    // Obtener la fecha de referencia (último pago o fecha de inicio)
+    const payments = loan.payments || [];
+    const lastPayment = payments.length > 0
+      ? payments.reduce((latest, payment) => 
+          new Date(payment.paymentDate) > new Date(latest.paymentDate) ? payment : latest
+        )
+      : null;
+    
+    // Normalizar fechas para evitar problemas de zona horaria
+    const normalizedPaymentDate = normalizeDate(paymentDate);
+    const referenceDate = lastPayment 
+      ? normalizeDate(lastPayment.paymentDate)
+      : normalizeDate(loan.startDate);
+    
+    const daysElapsed = Math.max(1, Math.floor(
+      (normalizedPaymentDate.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24)
+    ));
+    
+    if (loan.interestType === InterestType.FIXED) {
+      return calculateInterestByDays(loan.totalAmount, loan.interestRate, daysElapsed);
+    } else {
+      return calculateInterestByDays(loan.balance, loan.interestRate, daysElapsed);
+    }
+  };
+  
+  // Calcular el interés actual (se actualizará cuando cambie la fecha de pago)
+  const getInitialInterest = () => {
+    const today = new Date();
+    return Math.round(calculateCurrentInterest(today));
+  };
+  
+  const [currentInterest, setCurrentInterest] = useState(getInitialInterest());
   // Calcular el capital para préstamos DECREASING
   const decreasingCapital = baseCapitalAmount; // Siempre es el monto base de capital
 
@@ -171,19 +196,8 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
   type FormValues = z.infer<typeof formSchema>;
 
   const [calculatedPayment, setCalculatedPayment] = useState(() => {
-    const capital =
-      loan.interestType === InterestType.DECREASING
-        ? loan.currentInstallmentAmount
-        : loan.totalAmount / loan.installments;
-    const interest =
-      loan.interestType === InterestType.FIXED
-        ? (loan.fixedInterestAmount || 0) + (loan.pendingInterest || 0)
-        : (() => {
-            // Para interés decreciente, calcular el interés base y ajustarlo por frecuencia
-            const baseInterest = loan.balance * (loan.interestRate / 100);
-            const adjustedInterest = adjustInterestByFrequency(baseInterest, loan.paymentFrequency);
-            return adjustedInterest + (loan.pendingInterest || 0);
-          })();
+    const capital = baseCapitalAmount;
+    const interest = getInitialInterest();
     const total = capital + interest;
     return { capital, interest, total };
   });
@@ -196,7 +210,6 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
     currentInterest,
     decreasingCapital,
     baseCapitalAmount,
-    currentInstallmentAmount,
   });
 
   const initialAmount = baseCapitalAmount + currentInterest;
@@ -263,6 +276,18 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
     interestAmountNumber: Number(interestAmount || 0),
   });
 
+  // Actualizar el interés cuando cambia la fecha de pago
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === "paymentDate" && value.paymentDate) {
+        const newInterest = Math.round(calculateCurrentInterest(value.paymentDate));
+        setCurrentInterest(newInterest);
+        form.setValue("interestAmount", newInterest);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
+
   // Actualizar el capital e interés cuando cambia el tipo de interés o frecuencia
   useEffect(() => {
     form.setValue("capitalAmount", baseCapitalAmount);
@@ -270,10 +295,8 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
   }, [
     loan.interestType,
     loan.paymentFrequency,
-    currentInstallmentAmount,
     baseCapitalAmount,
     form,
-    decreasingCapital,
     currentInterest,
   ]);
 
@@ -403,7 +426,8 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
         method: "POST",
         body: JSON.stringify({
           paymentDate: values.paymentDate,
-          nextPaymentDate: values.nextPaymentDate,
+          // nextPaymentDate ya no se envía, el backend lo calcula automáticamente
+          // basándose en la fecha programada original del préstamo
           amount: Number(values.capitalAmount) + Number(values.interestAmount),
           notes: values.notes,
           capitalAmount: Number(values.capitalAmount),
@@ -432,8 +456,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
     }
   };
 
-  //todo:
-  //agregar a que cuenta entra el pago
+
 
   return (
     <Card className="relative">
@@ -484,23 +507,19 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
         <CardTitle>Registrar Pago</CardTitle>
       </CardHeader>
       <CardContent>
-        {loan.pendingInterest > 0 && (
-          <div className="mb-4 p-3 rounded bg-yellow-100 text-yellow-800 border border-yellow-300">
-            <strong>¡Atención!</strong> Tienes interés pendiente acumulado de{" "}
-            {formatCurrency({ value: loan.pendingInterest, symbol: true })}.
-            Este valor se sumará al interés de la cuota actual.
-            {loan.interestType === InterestType.DECREASING && (
-              <div className="mt-2 text-sm">
-                <div>• Interés de cuota actual (sobre saldo): {formatCurrency({ 
-                  value: Math.round(adjustInterestByFrequency(loan.balance * (loan.interestRate / 100), loan.paymentFrequency)), 
-                  symbol: true 
-                })}</div>
-                <div>• Interés pendiente de cuotas anteriores: {formatCurrency({ value: loan.pendingInterest, symbol: true })}</div>
-                <div className="font-semibold">• Total interés a pagar: {formatCurrency({ value: currentInterest, symbol: true })}</div>
-              </div>
-            )}
+        <div className="mb-4 p-3 rounded bg-blue-100 text-blue-800 border border-blue-300">
+          <strong>Información de Interés:</strong> El interés se calcula diariamente según los días transcurridos desde el último pago.
+          <div className="mt-2 text-sm">
+            <div>• Interés diario: {formatCurrency({ 
+              value: Math.round(calculateDailyInterest(
+                loan.interestType === InterestType.FIXED ? loan.totalAmount : loan.balance,
+                loan.interestRate
+              )), 
+              symbol: true 
+            })}</div>
+            <div className="font-semibold">• Interés calculado para esta fecha: {formatCurrency({ value: currentInterest, symbol: true })}</div>
           </div>
-        )}
+        </div>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
@@ -533,7 +552,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
                         mode="single"
                         selected={field.value}
                         onSelect={field.onChange}
-                        disabled={(date) => date > new Date()}
+                        // disabled={(date) => date > new Date()}
                         initialFocus
                       />
                     </PopoverContent>
@@ -591,16 +610,8 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
                       />
                     </FormControl>
                     <FormDescription>
-                      {interestAmount && interestAmount < currentInterest && (
-                        <span className="text-yellow-600">
-                          Interés pendiente:{" "}
-                          {formatCurrency({
-                            value: currentInterest - interestAmount,
-                            symbol: true,
-                          })}{" "}
-                          se sumará a la siguiente cuota
-                        </span>
-                      )}
+                      El interés se calcula automáticamente según los días transcurridos desde el último pago.
+                      Puedes ajustarlo manualmente si es necesario.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
