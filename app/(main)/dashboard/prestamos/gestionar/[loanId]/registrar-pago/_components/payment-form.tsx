@@ -101,11 +101,17 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
       (normalizedPaymentDate.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24)
     ));
     
+    // Calcular el interés base según días transcurridos
+    let baseInterest = 0;
     if (loan.interestType === InterestType.FIXED) {
-      return calculateInterestByDays(loan.totalAmount, loan.interestRate, daysElapsed);
+      baseInterest = calculateInterestByDays(loan.totalAmount, loan.interestRate, daysElapsed);
     } else {
-      return calculateInterestByDays(loan.balance, loan.interestRate, daysElapsed);
+      baseInterest = calculateInterestByDays(loan.balance, loan.interestRate, daysElapsed);
     }
+    
+    // Sumar el interés pendiente del último pago (si existe)
+    const lastPaymentPendingInterest = (lastPayment as any)?.pendingInterest || 0;
+    return baseInterest + lastPaymentPendingInterest;
   };
   
   // Calcular el interés actual (se actualizará cuando cambie la fecha de pago)
@@ -328,28 +334,28 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
 
   // Función para calcular automáticamente la próxima fecha de pago
   const calculateAndSetNextPaymentDate = async (paymentDate: Date) => {
-    console.log("🔄 Calculating next payment date for:", paymentDate);
+    console.log("Calculating next payment date for:", paymentDate);
     try {
       const result = await calculateNextPaymentDate(loan.id, paymentDate);
-      console.log("✅ Calculate result:", result);
+      console.log("Calculate result:", result);
       if (result.success && result.nextPaymentDate) {
-        console.log("📅 Setting next payment date:", result.nextPaymentDate);
+        console.log("Setting next payment date:", result.nextPaymentDate);
         form.setValue("nextPaymentDate", result.nextPaymentDate);
       } else {
-        console.log("❌ Failed to calculate or no next payment date");
+        console.log("Failed to calculate or no next payment date");
       }
     } catch (error) {
-      console.error("💥 Error calculating next payment date:", error);
+      console.error("Error calculating next payment date:", error);
     }
   };
 
   // Efecto para calcular automáticamente la próxima fecha cuando cambia la fecha de pago
   useEffect(() => {
-    console.log("🎯 Setting up form watch subscription");
+    console.log(" Setting up form watch subscription");
     const subscription = form.watch((value, { name }) => {
-      console.log("👀 Form watch triggered - name:", name, "value:", value);
+      console.log(" Form watch triggered - name:", name, "value:", value);
       if (name === "paymentDate" && value.paymentDate) {
-        console.log("📅 Payment date changed, calculating next payment date");
+        console.log(" Payment date changed, calculating next payment date");
         calculateAndSetNextPaymentDate(value.paymentDate);
       }
     });
@@ -517,7 +523,35 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
               )), 
               symbol: true 
             })}</div>
+            {(() => {
+              const payments = loan.payments || [];
+              const lastPayment = payments.length > 0
+                ? payments.reduce((latest, payment) => 
+                    new Date(payment.paymentDate) > new Date(latest.paymentDate) ? payment : latest
+                  )
+                : null;
+              const lastPaymentPendingInterest = (lastPayment as any)?.pendingInterest || 0;
+              return lastPaymentPendingInterest > 0 ? (
+                <div className="text-orange-700 font-semibold">
+                  • Interés pendiente de cuotas anteriores: {formatCurrency({ value: lastPaymentPendingInterest, symbol: true })}
+                </div>
+              ) : null;
+            })()}
             <div className="font-semibold">• Interés calculado para esta fecha: {formatCurrency({ value: currentInterest, symbol: true })}</div>
+            {(() => {
+              const payments = loan.payments || [];
+              const lastPayment = payments.length > 0
+                ? payments.reduce((latest, payment) => 
+                    new Date(payment.paymentDate) > new Date(latest.paymentDate) ? payment : latest
+                  )
+                : null;
+              const lastPaymentPendingInterest = (lastPayment as any)?.pendingInterest || 0;
+              return lastPaymentPendingInterest > 0 ? (
+                <div className="text-xs mt-1 text-blue-700">
+                  (Incluye interés pendiente de cuotas anteriores)
+                </div>
+              ) : null;
+            })()}
           </div>
         </div>
         <Form {...form}>
@@ -529,7 +563,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
                 <FormItem className="flex flex-col">
                   <FormLabel>Fecha de Pago</FormLabel>
                   <Popover>
-                    <PopoverTrigger asChild>
+                    <PopoverTrigger asChild className="max-w-sm">
                       <FormControl>
                         <Button
                           variant={"outline"}
@@ -554,6 +588,8 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
                         onSelect={field.onChange}
                         // disabled={(date) => date > new Date()}
                         initialFocus
+                        defaultMonth={watch("paymentDate")}
+                        captionLayout="dropdown"
                       />
                     </PopoverContent>
                   </Popover>
@@ -586,7 +622,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
                           className="h-auto p-0 text-blue-600"
                           onClick={() => form.setValue("capitalAmount", loan.balance)}
                         >
-                          💡 ¿Quieres saldar el préstamo? Haz clic para usar el saldo exacto: {formatCurrency({ value: loan.balance, symbol: true })}
+                         ¿Quieres saldar el préstamo? Haz clic para usar el saldo exacto: {formatCurrency({ value: loan.balance, symbol: true })}
                         </Button>
                       </FormDescription>
                     )}
@@ -611,7 +647,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
                     </FormControl>
                     <FormDescription>
                       El interés se calcula automáticamente según los días transcurridos desde el último pago.
-                      Puedes ajustarlo manualmente si es necesario.
+                      
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

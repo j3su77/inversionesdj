@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { createLoanAuditLog } from "@/lib/loan-audit"
 
 export async function POST(
   req: Request,
@@ -37,6 +38,15 @@ export async function POST(
         approvedAt: new Date(),
         approvedBy,
       },
+    })
+
+    // Registrar auditoría de aprobación
+    await createLoanAuditLog({
+      loanId,
+      action: "APPROVED",
+      description: `Préstamo aprobado por ${approvedBy || "usuario"}`,
+      oldData: { status: loan.status },
+      newData: { status: updatedLoan.status, approvedAt: updatedLoan.approvedAt },
     })
 
     return NextResponse.json(updatedLoan)

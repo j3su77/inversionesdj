@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { createLoanAuditLog } from "@/lib/loan-audit";
 
 export async function POST(
   req: Request,
@@ -80,6 +81,22 @@ export async function POST(
       });
 
       return { action: "cancelled", loan: cancelledLoan };
+    });
+
+    // Registrar auditoría de cancelación
+    await createLoanAuditLog({
+      loanId,
+      action: "CANCELLED",
+      description: `Préstamo cancelado. Razón: ${reason || "Sin razón especificada"}`,
+      oldData: {
+        status: loan.status,
+        balance: loan.balance,
+      },
+      newData: {
+        status: result.loan.status,
+        balance: result.loan.balance,
+        notes: result.loan.notes,
+      },
     });
 
     return NextResponse.json(result);

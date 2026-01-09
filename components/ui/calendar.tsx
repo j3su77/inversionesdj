@@ -19,7 +19,7 @@ function Calendar({
   className,
   classNames,
   showOutsideDays = true,
-  captionLayout = "label",
+  captionLayout = "dropdown-months",
   buttonVariant = "ghost",
   formatters,
   components,

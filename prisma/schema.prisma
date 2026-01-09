@@ -213,6 +213,7 @@ model Loan {
   // Documents and Changes
   documents            Document[]       // Documentos relacionados al préstamo
   frequencyChanges     PaymentFrequencyChange[]
+  auditLogs            LoanAudit[]      // Historial de auditoría
 
   // Audit
   createdAt            DateTime         @default(now())
@@ -222,6 +223,41 @@ model Loan {
   notes                String?          // Notas o comentarios
 
   @@index([clientId])
+}
+
+enum LoanAuditAction {
+  CREATED      // Préstamo creado
+  APPROVED     // Préstamo aprobado
+  UPDATED      // Préstamo actualizado
+  PAYMENT      // Pago registrado
+  CANCELLED    // Préstamo cancelado
+  STATUS_CHANGED // Cambio de estado
+}
+
+model LoanAudit {
+  id          String          @id @default(uuid())
+  loan        Loan            @relation(fields: [loanId], references: [id])
+  loanId      String
+  
+  action      LoanAuditAction // Acción realizada
+  performedBy String?         // ID del usuario que realizó la acción
+  performedByUsername String? // Username del usuario (para referencia rápida)
+  
+  // Detalles del cambio
+  description String?         // Descripción de la acción
+  oldData     Json?           // Datos anteriores (para actualizaciones)
+  newData     Json?           // Datos nuevos (para actualizaciones)
+  
+  // Metadata
+  ipAddress   String?         // IP desde donde se realizó la acción
+  userAgent   String?         // User agent del navegador
+  
+  createdAt   DateTime        @default(now())
+
+  @@index([loanId])
+  @@index([action])
+  @@index([performedBy])
+  @@index([createdAt])
 }
 
 model PaymentFrequencyChange {
@@ -256,7 +292,8 @@ model Payment {
   paymentDate     DateTime
   amount          Float     // Monto total pagado
   capitalAmount   Float     // Monto aplicado al capital
-  interestAmount  Float     // Monto de intereses
+  interestAmount  Float     // Monto de intereses pagados
+  pendingInterest Float     @default(0) // Interés pendiente de esta cuota que no se pagó
   installmentNumber Int     // Número de cuota
   
   notes           String?   // Notas o comentarios

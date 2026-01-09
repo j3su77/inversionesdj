@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { LoanStatus } from "@prisma/client";
+import { createLoanAuditLog } from "@/lib/loan-audit";
 
 // interface AccountSelection {
 //   accountId: string;
@@ -88,9 +89,9 @@ export async function POST(
           select: {
             installmentNumber: true,
             paymentDate: true,
+            pendingInterest: true,
           },
         },
-        pendingInterest: true,
       },
     });
 
@@ -112,61 +113,34 @@ export async function POST(
       );
     }
 
-    // Función auxiliar para calcular los días del período programado basado en la frecuencia
-    // Para pagos diarios, semanales y quincenales: usar 30 días como base fija
-    // Para pagos mensuales y trimestrales: calcular días reales entre fechas programadas
-    const getDaysInPeriod = (
-      referenceDate: Date,
-      paymentFrequency: string
-    ): number => {
-      // Para pagos diarios, semanales y quincenales, usar 30 días como base
-      if (paymentFrequency === "DAILY" || paymentFrequency === "WEEKLY" || paymentFrequency === "BIWEEKLY") {
-        return 30;
-      }
-      
-      // Para pagos mensuales y trimestrales, calcular días reales
-      const normalizedRef = new Date(referenceDate);
-      normalizedRef.setHours(0, 0, 0, 0);
-      
-      // Calcular la fecha del próximo pago programado según la frecuencia
-      const nextProgrammedDate = new Date(normalizedRef);
-      
-      switch (paymentFrequency) {
-        case "MONTHLY":
-          // Mantener el mismo día del mes (ej: 15 de enero -> 15 de febrero)
-          nextProgrammedDate.setMonth(nextProgrammedDate.getMonth() + 1);
-          break;
-        case "QUARTERLY":
-          nextProgrammedDate.setMonth(nextProgrammedDate.getMonth() + 3);
-          break;
-        default:
-          nextProgrammedDate.setMonth(nextProgrammedDate.getMonth() + 1);
-      }
-      
-      // Calcular los días reales entre las fechas
-      const daysDiff = Math.floor(
-        (nextProgrammedDate.getTime() - normalizedRef.getTime()) / (1000 * 60 * 60 * 24)
-      );
-      
-      return Math.max(1, daysDiff);
+    // Función para calcular el interés diario (igual que en el frontend)
+    // Interés mensual = monto * tasa / 100
+    // Interés diario = interés mensual / 30
+    const calculateDailyInterest = (amount: number, interestRate: number): number => {
+      const monthlyInterest = amount * (interestRate / 100);
+      return monthlyInterest / 30;
     };
 
-    // Función para calcular el interés según días transcurridos
-    // Interés mensual = monto * tasa / 100
-    // Interés para el período = interés mensual * (días transcurridos / días del período programado)
+    // Función para calcular el interés según días transcurridos (igual que en el frontend)
+    // Para mantener consistencia con el frontend, siempre dividimos entre 30 días
     const calculateInterestByDays = (
       amount: number,
       interestRate: number,
-      daysElapsed: number,
-      daysInPeriod: number
+      days: number
     ): number => {
-      const monthlyInterest = amount * (interestRate / 100);
-      // Calcular el interés proporcional basado en los días reales del período
-      return (monthlyInterest / daysInPeriod) * daysElapsed;
+      const dailyInterest = calculateDailyInterest(amount, interestRate);
+      return dailyInterest * days;
     };
 
     // Obtener el último pago para calcular el número de cuota
     const lastPayment = loan.payments[0];
+    
+    // Obtener el último pago completo con pendingInterest
+    // Nota: pendingInterest se agregó al schema, regenerar Prisma Client si hay errores de tipo
+    const lastPaymentFull = await prisma.payment.findFirst({
+      where: { loanId },
+      orderBy: { installmentNumber: "desc" },
+    }) as { installmentNumber: number; paymentDate: Date; pendingInterest: number } | null;
 
     // Usar directamente los montos proporcionados por el frontend
     // (El frontend calcula el interés basado en días transcurridos)
@@ -183,8 +157,41 @@ export async function POST(
       finalCapitalAmount = loan.balance;
     }
 
-    // Ya no hay interés pendiente acumulado, se calcula por días transcurridos
-    const newPendingInterest = 0;
+    // Calcular el interés esperado basado en los días transcurridos
+    const normalizeDate = (date: Date | string): Date => {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    };
+
+    const normalizedPaymentDate = normalizeDate(paymentDate);
+    const referenceDate = lastPayment 
+      ? normalizeDate(lastPayment.paymentDate)
+      : normalizeDate(loan.startDate);
+    
+    const daysElapsed = Math.max(1, Math.floor(
+      (normalizedPaymentDate.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24)
+    ));
+
+    // Obtener el interés pendiente del último pago (si existe)
+    const lastPaymentPendingInterest = lastPaymentFull?.pendingInterest || 0;
+
+    // Calcular el interés esperado para este período usando el mismo método que el frontend
+    // (base + pendiente del último pago)
+    const baseExpectedInterest = loan.interestType === "FIXED"
+      ? calculateInterestByDays(loan.totalAmount, loan.interestRate, daysElapsed)
+      : calculateInterestByDays(loan.balance, loan.interestRate, daysElapsed);
+
+    // El interés esperado total incluye el interés pendiente del último pago
+    // Redondear para mantener consistencia con el frontend que usa Math.round()
+    const expectedInterest = Math.round(baseExpectedInterest + lastPaymentPendingInterest);
+
+    // Calcular la diferencia entre el interés esperado y el pagado
+    // Si el interés pagado es menor al esperado, registrar la diferencia como pendiente de esta cuota
+    const interestDifference = expectedInterest - finalInterestAmount;
+    
+    // El interés pendiente de esta cuota es la diferencia no pagada (no puede ser negativo)
+    const paymentPendingInterest = Math.max(0, interestDifference);
 
     // Calcular nuevo saldo
     const newBalance = Math.max(0, loan.balance - finalCapitalAmount);
@@ -206,14 +213,40 @@ export async function POST(
       ? new Date(loan.nextPaymentDate) 
       : new Date(paymentDate);
     
-    // Calcular los días reales del período programado basado en la frecuencia
-    const daysInPeriod = getDaysInPeriod(baseDateForNextPeriod, loan.paymentFrequency);
+    // Calcular los días del próximo período según la frecuencia
+    let daysInNextPeriod = 30; // Por defecto 30 días
+    switch (loan.paymentFrequency) {
+      case "DAILY":
+        daysInNextPeriod = 1;
+        break;
+      case "WEEKLY":
+        daysInNextPeriod = 7;
+        break;
+      case "BIWEEKLY":
+        daysInNextPeriod = 15;
+        break;
+      case "MONTHLY":
+        // Para mensual, calcular días reales entre fechas programadas
+        const nextDate = new Date(baseDateForNextPeriod);
+        nextDate.setMonth(nextDate.getMonth() + 1);
+        daysInNextPeriod = Math.floor(
+          (nextDate.getTime() - baseDateForNextPeriod.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        break;
+      case "QUARTERLY":
+        const nextQuarterDate = new Date(baseDateForNextPeriod);
+        nextQuarterDate.setMonth(nextQuarterDate.getMonth() + 3);
+        daysInNextPeriod = Math.floor(
+          (nextQuarterDate.getTime() - baseDateForNextPeriod.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        break;
+    }
     
-    // Calcular el interés estimado para la próxima cuota usando días reales del período
+    // Calcular el interés estimado para la próxima cuota usando el mismo método que el frontend
     const nextInterest =
       loan.interestType === "FIXED"
-        ? calculateInterestByDays(loan.totalAmount, loan.interestRate, daysInPeriod, daysInPeriod)
-        : calculateInterestByDays(adjustedNewBalance, loan.interestRate, daysInPeriod, daysInPeriod);
+        ? Math.round(calculateInterestByDays(loan.totalAmount, loan.interestRate, daysInNextPeriod))
+        : Math.round(calculateInterestByDays(adjustedNewBalance, loan.interestRate, daysInNextPeriod));
     
     const nextInstallmentAmount = baseCapitalAmount + nextInterest;
 
@@ -224,7 +257,7 @@ export async function POST(
     }
 
     // Calcular el número de cuota - Ahora siempre incrementa
-    const installmentNumber = (lastPayment?.installmentNumber || 0) + 1;
+    const installmentNumber = (lastPaymentFull?.installmentNumber || lastPayment?.installmentNumber || 0) + 1;
 
     // Calcular la próxima fecha de pago basada en la fecha programada original
     // Si el pago se retrasa, la próxima fecha debe calcularse desde la fecha programada, no desde la fecha de pago real
@@ -264,6 +297,7 @@ export async function POST(
     // Registrar el pago y actualizar el préstamo en una transacción
     const result = await prisma.$transaction(async (tx) => {
       // 1. Registrar el pago
+      // Nota: pendingInterest se agregó al schema, regenerar Prisma Client si hay errores de tipo
       const payment = await tx.payment.create({
         data: {
           loanId,
@@ -271,9 +305,10 @@ export async function POST(
           amount: finalCapitalAmount + finalInterestAmount,
           capitalAmount: finalCapitalAmount,
           interestAmount: finalInterestAmount,
+          pendingInterest: paymentPendingInterest, // Interés pendiente de esta cuota
           notes,
           installmentNumber,
-        },
+        } as any,
       });
 
       // 2. Actualizar los saldos de las cuentas
@@ -289,6 +324,7 @@ export async function POST(
       // }
 
       // 3. Actualizar el préstamo
+      // Ya no usamos pendingInterest en el Loan, se maneja en cada Payment
       const updatedLoan = await tx.loan.update({
         where: { id: loanId },
         data: {
@@ -297,12 +333,28 @@ export async function POST(
           lastPaymentDate: new Date(paymentDate),
           nextPaymentDate: calculatedNextPaymentDate,
           currentInstallmentAmount: adjustedNewBalance > 0 ? nextInstallmentAmount : 0,
-          pendingInterest: newPendingInterest,
+          pendingInterest: 0, // Ya no se usa, se mantiene en 0 para compatibilidad
           status: newStatus,
         },
       });
 
       return { payment, updatedLoan };
+    });
+
+    // Registrar auditoría de pago
+    await createLoanAuditLog({
+      loanId,
+      action: "PAYMENT",
+      description: `Pago registrado. Cuota #${result.payment.installmentNumber}. Capital: ${result.payment.capitalAmount}, Interés: ${result.payment.interestAmount}`,
+      newData: {
+        paymentId: result.payment.id,
+        installmentNumber: result.payment.installmentNumber,
+        capitalAmount: result.payment.capitalAmount,
+        interestAmount: result.payment.interestAmount,
+        pendingInterest: result.payment.pendingInterest,
+        newBalance: result.updatedLoan.balance,
+        newStatus: result.updatedLoan.status,
+      },
     });
 
     return NextResponse.json(result);

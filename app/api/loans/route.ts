@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { addDays, addMonths, addWeeks } from "date-fns";
+import { createLoanAuditLog } from "@/lib/loan-audit";
 
 // interface AccountSelection {
 //     accountId: string;
@@ -271,6 +272,21 @@ export async function POST(req: Request) {
         return loan
     })
 
+    // Registrar auditoría de creación
+    await createLoanAuditLog({
+        loanId: loan.id,
+        action: "CREATED",
+        description: `Préstamo creado para el cliente. Monto: ${totalAmount}, Cuotas: ${installments}`,
+        newData: {
+            loanNumber: loan.loanNumber,
+            totalAmount: loan.totalAmount,
+            installments: loan.installments,
+            interestRate: loan.interestRate,
+            interestType: loan.interestType,
+            paymentFrequency: loan.paymentFrequency,
+            status: loan.status,
+        },
+    })
    
     const completeLoan = await prisma.loan.findUnique({
         where: { id: loan.id },
