@@ -90,22 +90,28 @@ export const LoanSimulator = () => {
     effectiveRate: 0,
   });
 
-  // Función para calcular días entre pagos según frecuencia
-  const getDaysBetweenPayments = (frequency: string): number => {
-    switch (frequency) {
-      case "DAILY":
-        return 1;
-      case "WEEKLY":
-        return 7;
-      case "BIWEEKLY":
-        return 15;
-      case "MONTHLY":
-        return 30;
-      case "QUARTERLY":
-        return 90;
-      default:
-        return 30;
-    }
+  // Función para calcular el interés diario (igual que en payment-form.tsx)
+  // Interés mensual = monto * tasa / 100
+  // Interés diario = interés mensual / 30
+  const calculateDailyInterest = (amount: number, interestRate: number): number => {
+    const monthlyInterest = amount * (interestRate / 100);
+    return monthlyInterest / 30;
+  };
+
+  // Función para calcular el interés según días transcurridos (igual que en payment-form.tsx)
+  const calculateInterestByDays = (
+    amount: number,
+    interestRate: number,
+    days: number
+  ): number => {
+    const dailyInterest = calculateDailyInterest(amount, interestRate);
+    return dailyInterest * days;
+  };
+
+  // Función para calcular días reales entre dos fechas
+  const getDaysBetweenDates = (startDate: Date, endDate: Date): number => {
+    const diffTime = endDate.getTime() - startDate.getTime();
+    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
   };
 
   // Función para calcular la tabla de amortización
@@ -135,67 +141,119 @@ export const LoanSimulator = () => {
     const schedule: PaymentSchedule[] = [];
     let remainingBalance = totalAmount;
     const baseCapitalAmount = totalAmount / installments;
-    const daysBetweenPayments = getDaysBetweenPayments(paymentFrequency);
+
+    // Fecha base para calcular las fechas de pago (fecha actual)
+    const baseDate = new Date();
+    baseDate.setHours(0, 0, 0, 0);
 
     // Calcular interés según el tipo
     let totalInterest = 0;
-    let fixedInterestAmount = 0;
 
-    // Función para calcular el interés diario
-    const calculateDailyInterest = (amount: number, rate: number): number => {
-      const monthlyInterest = amount * (rate / 100);
-      return monthlyInterest / 30;
-    };
-
-    // Calcular días según la frecuencia de pago
-    const getDaysForFrequency = (frequency: string): number => {
-      switch (frequency) {
-        case "DAILY":
-          return 1;
-        case "WEEKLY":
-          return 7;
-        case "BIWEEKLY":
-          return 15;
-        case "MONTHLY":
-          return 30;
-        case "QUARTERLY":
-          return 90;
-        default:
-          return 30;
-      }
-    };
-
-    if (interestType === "FIXED") {
-      // Para interés fijo: calcular interés diario y multiplicar por días de frecuencia
-      const dailyInterest = calculateDailyInterest(totalAmount, interestRate);
-      const daysForFrequency = getDaysForFrequency(paymentFrequency);
-      fixedInterestAmount = dailyInterest * daysForFrequency;
-    }
-
+    // Fecha de inicio del préstamo (fecha base)
+    const loanStartDate = new Date(baseDate);
+    let currentPaymentDate = new Date(baseDate);
+    
     for (let i = 1; i <= installments; i++) {
+      // Calcular la fecha de referencia
+      // Para la primera cuota: usar la fecha de inicio del préstamo
+      // Para las siguientes: usar la fecha del pago anterior
+      const referenceDate = i === 1 
+        ? new Date(loanStartDate)
+        : new Date(currentPaymentDate);
+      
+      // Calcular la fecha de pago
+      // Para la primera cuota: calcular desde la fecha base según la frecuencia
+      // Para las siguientes: calcular desde la fecha anterior
+      if (i === 1) {
+        // Primera cuota: calcular la primera fecha de pago desde la fecha base
+        currentPaymentDate = new Date(baseDate);
+        switch (paymentFrequency) {
+          case "DAILY":
+            currentPaymentDate.setDate(currentPaymentDate.getDate() + 1);
+            break;
+          case "WEEKLY":
+            currentPaymentDate.setDate(currentPaymentDate.getDate() + 7);
+            break;
+          case "BIWEEKLY":
+            currentPaymentDate.setDate(currentPaymentDate.getDate() + 15);
+            break;
+          case "MONTHLY":
+            // Mantener el mismo día del mes (ej: 9 de enero -> 9 de febrero)
+            currentPaymentDate.setMonth(currentPaymentDate.getMonth() + 1);
+            break;
+          case "QUARTERLY":
+            // Mantener el mismo día del mes (ej: 9 de enero -> 9 de abril)
+            currentPaymentDate.setMonth(currentPaymentDate.getMonth() + 3);
+            break;
+          default:
+            currentPaymentDate.setMonth(currentPaymentDate.getMonth() + 1);
+        }
+      } else {
+        // Cuotas siguientes: calcular desde la fecha anterior
+        switch (paymentFrequency) {
+          case "DAILY":
+            currentPaymentDate.setDate(currentPaymentDate.getDate() + 1);
+            break;
+          case "WEEKLY":
+            currentPaymentDate.setDate(currentPaymentDate.getDate() + 7);
+            break;
+          case "BIWEEKLY":
+            currentPaymentDate.setDate(currentPaymentDate.getDate() + 15);
+            break;
+          case "MONTHLY":
+            // Mantener el mismo día del mes (ej: 9 de mayo -> 9 de junio)
+            currentPaymentDate.setMonth(currentPaymentDate.getMonth() + 1);
+            break;
+          case "QUARTERLY":
+            // Mantener el mismo día del mes (ej: 9 de mayo -> 9 de agosto)
+            currentPaymentDate.setMonth(currentPaymentDate.getMonth() + 3);
+            break;
+          default:
+            currentPaymentDate.setMonth(currentPaymentDate.getMonth() + 1);
+        }
+      }
+      
+      const paymentDate = new Date(currentPaymentDate);
+      
+      // Calcular días reales entre la fecha de referencia y la fecha de pago
+      // Para pagos diarios, semanales y quincenales: usar días fijos
+      // Para pagos mensuales y trimestrales: calcular días reales
+      let daysElapsed: number;
+      if (paymentFrequency === "DAILY" || paymentFrequency === "WEEKLY" || paymentFrequency === "BIWEEKLY") {
+        // Para estos casos, usar días fijos
+        switch (paymentFrequency) {
+          case "DAILY":
+            daysElapsed = 1;
+            break;
+          case "WEEKLY":
+            daysElapsed = 7;
+            break;
+          case "BIWEEKLY":
+            daysElapsed = 15;
+            break;
+          default:
+            daysElapsed = 30;
+        }
+      } else {
+        // Para mensuales y trimestrales, calcular días reales entre fechas
+        daysElapsed = getDaysBetweenDates(referenceDate, paymentDate);
+      }
+
       let interestAmount: number;
       let capitalAmount: number;
 
       if (interestType === "FIXED") {
-        // Interés fijo: calcular según días de frecuencia
-        const dailyInterest = calculateDailyInterest(totalAmount, interestRate);
-        const daysForFrequency = getDaysForFrequency(paymentFrequency);
-        interestAmount = dailyInterest * daysForFrequency;
+        // Interés fijo: calcular según días transcurridos usando la misma fórmula
+        interestAmount = calculateInterestByDays(totalAmount, interestRate, daysElapsed);
         capitalAmount = baseCapitalAmount;
       } else {
-        // Interés decreciente: calcular interés diario sobre saldo y multiplicar por días
-        const dailyInterest = calculateDailyInterest(remainingBalance, interestRate);
-        const daysForFrequency = getDaysForFrequency(paymentFrequency);
-        interestAmount = dailyInterest * daysForFrequency;
+        // Interés decreciente: calcular según días transcurridos sobre el saldo
+        interestAmount = calculateInterestByDays(remainingBalance, interestRate, daysElapsed);
         capitalAmount = baseCapitalAmount;
       }
 
       const totalPayment = capitalAmount + interestAmount;
       const newRemainingBalance = Math.max(0, remainingBalance - capitalAmount);
-
-      // Calcular fecha de pago
-      const paymentDate = new Date();
-      paymentDate.setDate(paymentDate.getDate() + i * daysBetweenPayments);
 
       schedule.push({
         installmentNumber: i,
@@ -511,14 +569,14 @@ export const LoanSimulator = () => {
                       </div>
 
                       <div className="space-y-4">
-                        <div className="flex justify-between items-center">
+                        {/* <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">
                             Tasa efectiva:
                           </span>
                           <Badge variant="outline">
                             {loanSummary.effectiveRate.toFixed(2)}%
                           </Badge>
-                        </div>
+                        </div> */}
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">
                             Tipo de interés:
@@ -925,7 +983,7 @@ export const LoanSimulator = () => {
                   </div>
                 </div>
 
-                <div>
+                {/* <div>
                   <h3 className="text-lg font-semibold text-gray-800 mb-4">
                     Información Adicional
                   </h3>
@@ -950,7 +1008,7 @@ export const LoanSimulator = () => {
                       </span>
                     </div>
                   </div>
-                </div>
+                </div> */}
               </div>
             </div>
 

@@ -222,12 +222,15 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
 
   console.log({ initialAmount , baseCapitalAmount, currentInterest});
 
+  // Calcular el capital inicial: si baseCapitalAmount es mayor al balance, usar el balance
+  const initialCapitalAmount = Math.min(baseCapitalAmount, loan.balance);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       paymentDate: new Date(),
       nextPaymentDate: new Date(),
-      capitalAmount: baseCapitalAmount,
+      capitalAmount: initialCapitalAmount,
       interestAmount: currentInterest,
       // accounts: [],
       notes: "",
@@ -294,14 +297,31 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
     return () => subscription.unsubscribe();
   }, [form]);
 
+  // Ajustar automáticamente el capitalAmount si es mayor al saldo pendiente
+  useEffect(() => {
+    const subscription = form.watch((value) => {
+      if (value.capitalAmount) {
+        const capitalValue = Number(value.capitalAmount);
+        if (capitalValue > loan.balance) {
+          // Si el capital a pagar es mayor al saldo pendiente, ajustarlo al saldo pendiente
+          form.setValue("capitalAmount", loan.balance);
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form, loan.balance]);
+
   // Actualizar el capital e interés cuando cambia el tipo de interés o frecuencia
   useEffect(() => {
-    form.setValue("capitalAmount", baseCapitalAmount);
+    // Asegurar que el capital no sea mayor al saldo pendiente
+    const adjustedCapital = Math.min(baseCapitalAmount, loan.balance);
+    form.setValue("capitalAmount", adjustedCapital);
     form.setValue("interestAmount", currentInterest);
   }, [
     loan.interestType,
     loan.paymentFrequency,
     baseCapitalAmount,
+    loan.balance,
     form,
     currentInterest,
   ]);
@@ -714,7 +734,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
               }}
             /> */}
 
-            <Card className="col-span-full bg-orange-200">
+            <Card className="col-span-full bg-orange-200 hidden">
               <CardHeader>
                 <CardTitle>Fecha del Próximo Pago</CardTitle>
               </CardHeader>
