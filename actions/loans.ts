@@ -136,7 +136,9 @@ export const getLoanById = async (loanId: string) => {
     const loan = await db.loan.findUnique({
       where: {
         id: loanId,
-      status: "ACTIVE",
+      NOT: {
+        status: "CANCELLED",
+      },
     },
     include: {
       client: true,

@@ -108,11 +108,6 @@ export const LoanSimulator = () => {
     return dailyInterest * days;
   };
 
-  // Función para calcular días reales entre dos fechas
-  const getDaysBetweenDates = (startDate: Date, endDate: Date): number => {
-    const diffTime = endDate.getTime() - startDate.getTime();
-    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  };
 
   // Función para calcular la tabla de amortización
   const calculateAmortization = (
@@ -215,28 +210,30 @@ export const LoanSimulator = () => {
       
       const paymentDate = new Date(currentPaymentDate);
       
-      // Calcular días reales entre la fecha de referencia y la fecha de pago
-      // Para pagos diarios, semanales y quincenales: usar días fijos
-      // Para pagos mensuales y trimestrales: calcular días reales
+      // Calcular días para el cálculo de intereses
+      // Método 30/360: Para préstamos mensuales y trimestrales, siempre usar 30 días por mes
+      // Esto es estándar en créditos de consumo (no importa si el mes tiene 28, 30 o 31 días)
       let daysElapsed: number;
-      if (paymentFrequency === "DAILY" || paymentFrequency === "WEEKLY" || paymentFrequency === "BIWEEKLY") {
-        // Para estos casos, usar días fijos
-        switch (paymentFrequency) {
-          case "DAILY":
-            daysElapsed = 1;
-            break;
-          case "WEEKLY":
-            daysElapsed = 7;
-            break;
-          case "BIWEEKLY":
-            daysElapsed = 15;
-            break;
-          default:
-            daysElapsed = 30;
-        }
-      } else {
-        // Para mensuales y trimestrales, calcular días reales entre fechas
-        daysElapsed = getDaysBetweenDates(referenceDate, paymentDate);
+      switch (paymentFrequency) {
+        case "DAILY":
+          daysElapsed = 1;
+          break;
+        case "WEEKLY":
+          daysElapsed = 7;
+          break;
+        case "BIWEEKLY":
+          daysElapsed = 15;
+          break;
+        case "MONTHLY":
+          // Método 30/360: siempre usar 30 días para meses
+          daysElapsed = 30;
+          break;
+        case "QUARTERLY":
+          // Método 30/360: 3 meses × 30 días = 90 días
+          daysElapsed = 90;
+          break;
+        default:
+          daysElapsed = 30;
       }
 
       let interestAmount: number;

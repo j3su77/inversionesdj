@@ -12,9 +12,25 @@ const EditClientPage = async ({ params }: { params: Promise<{ clientId: string }
     include: {
       documents: true,
       loans: {
-        include: { 
-          payments: { orderBy: { paymentDate: 'desc' } },
-        
+        // Solo obtener datos básicos de préstamos para estadísticas
+        // El cálculo del perfil se hace en el endpoint API
+        select: {
+          id: true,
+          totalAmount: true,
+          balance: true,
+          status: true,
+          createdAt: true,
+          startDate: true,
+          endDate: true,
+          installments: true,
+          remainingInstallments: true,
+          payments: {
+            select: {
+              amount: true,
+              paymentDate: true,
+            },
+            orderBy: { paymentDate: 'desc' },
+          },
         },
         orderBy: { createdAt: "desc" },
       },

@@ -14,12 +14,13 @@ import {
 
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { es } from "date-fns/locale"
 
 function Calendar({
   className,
   classNames,
   showOutsideDays = true,
-  captionLayout = "dropdown-months",
+  captionLayout = "dropdown",
   buttonVariant = "ghost",
   formatters,
   components,
@@ -41,9 +42,10 @@ function Calendar({
       captionLayout={captionLayout}
       formatters={{
         formatMonthDropdown: (date) =>
-          date.toLocaleString("default", { month: "short" }),
+          date.toLocaleString("es-CO", { month: "short" }),
         ...formatters,
       }}
+      locale={es}
       classNames={{
         root: cn("w-fit", defaultClassNames.root),
         months: cn(

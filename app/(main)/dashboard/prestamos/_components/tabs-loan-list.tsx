@@ -76,9 +76,6 @@ export function TabsLoanList() {
     loadLoans();
   }, [activeTab]);
 
-  useEffect(() => {
-    console.log({ activeTab });
-  }, [activeTab]);
 
   if (!isClient || activeTab == null) {
     return (

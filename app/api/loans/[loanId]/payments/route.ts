@@ -169,9 +169,43 @@ export async function POST(
       ? normalizeDate(lastPayment.paymentDate)
       : normalizeDate(loan.startDate);
     
-    const daysElapsed = Math.max(1, Math.floor(
-      (normalizedPaymentDate.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24)
-    ));
+    // Calcular días para el cálculo de intereses
+    // Método 30/360: Para préstamos mensuales y trimestrales, siempre usar 30 días por mes
+    // Esto es estándar en créditos de consumo (no importa si el mes tiene 28, 30 o 31 días)
+    let daysElapsed: number;
+    if (loan.paymentFrequency === "MONTHLY" || loan.paymentFrequency === "QUARTERLY") {
+      // Método 30/360: calcular meses completos × 30 + días proporcionales
+      const year1 = referenceDate.getFullYear();
+      const month1 = referenceDate.getMonth();
+      const day1 = referenceDate.getDate();
+      
+      const year2 = normalizedPaymentDate.getFullYear();
+      const month2 = normalizedPaymentDate.getMonth();
+      const day2 = normalizedPaymentDate.getDate();
+      
+      // Calcular diferencia de meses completos
+      const monthsDiff = (year2 - year1) * 12 + (month2 - month1);
+      
+      if (monthsDiff === 0) {
+        // Mismo mes: usar días reales pero máximo 30
+        daysElapsed = Math.min(30, Math.max(1, day2 - day1));
+      } else {
+        // Meses completos × 30 + días del mes inicial + días del mes final
+        // Días del mes inicial: 30 - día1 (días restantes del mes)
+        // Días del mes final: día2 (días transcurridos del mes)
+        const daysFromStartMonth = 30 - day1;
+        const daysFromEndMonth = day2;
+        daysElapsed = (monthsDiff - 1) * 30 + daysFromStartMonth + daysFromEndMonth;
+      }
+      
+      // Asegurar mínimo de 1 día
+      daysElapsed = Math.max(1, daysElapsed);
+    } else {
+      // Para diarios, semanales y quincenales: usar días reales
+      daysElapsed = Math.max(1, Math.floor(
+        (normalizedPaymentDate.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24)
+      ));
+    }
 
     // Obtener el interés pendiente del último pago (si existe)
     const lastPaymentPendingInterest = lastPaymentFull?.pendingInterest || 0;
@@ -208,13 +242,9 @@ export async function POST(
     // El interés se calculará dinámicamente según los días transcurridos cuando se registre el próximo pago
     const baseCapitalAmount = loan.totalAmount / loan.installments;
     
-    // Calcular la fecha base para el próximo período (fecha programada o fecha de pago actual)
-    const baseDateForNextPeriod = loan.nextPaymentDate 
-      ? new Date(loan.nextPaymentDate) 
-      : new Date(paymentDate);
-    
     // Calcular los días del próximo período según la frecuencia
-    let daysInNextPeriod = 30; // Por defecto 30 días
+    // Método 30/360: Para préstamos mensuales y trimestrales, siempre usar 30 días por mes
+    let daysInNextPeriod: number;
     switch (loan.paymentFrequency) {
       case "DAILY":
         daysInNextPeriod = 1;
@@ -226,20 +256,15 @@ export async function POST(
         daysInNextPeriod = 15;
         break;
       case "MONTHLY":
-        // Para mensual, calcular días reales entre fechas programadas
-        const nextDate = new Date(baseDateForNextPeriod);
-        nextDate.setMonth(nextDate.getMonth() + 1);
-        daysInNextPeriod = Math.floor(
-          (nextDate.getTime() - baseDateForNextPeriod.getTime()) / (1000 * 60 * 60 * 24)
-        );
+        // Método 30/360: siempre usar 30 días para meses
+        daysInNextPeriod = 30;
         break;
       case "QUARTERLY":
-        const nextQuarterDate = new Date(baseDateForNextPeriod);
-        nextQuarterDate.setMonth(nextQuarterDate.getMonth() + 3);
-        daysInNextPeriod = Math.floor(
-          (nextQuarterDate.getTime() - baseDateForNextPeriod.getTime()) / (1000 * 60 * 60 * 24)
-        );
+        // Método 30/360: 3 meses × 30 días = 90 días
+        daysInNextPeriod = 90;
         break;
+      default:
+        daysInNextPeriod = 30;
     }
     
     // Calcular el interés estimado para la próxima cuota usando el mismo método que el frontend

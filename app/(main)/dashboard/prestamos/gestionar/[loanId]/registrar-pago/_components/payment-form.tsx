@@ -97,9 +97,43 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
       ? normalizeDate(lastPayment.paymentDate)
       : normalizeDate(loan.startDate);
     
-    const daysElapsed = Math.max(1, Math.floor(
-      (normalizedPaymentDate.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24)
-    ));
+    // Calcular días para el cálculo de intereses
+    // Método 30/360: Para préstamos mensuales y trimestrales, siempre usar 30 días por mes
+    // Esto es estándar en créditos de consumo (no importa si el mes tiene 28, 30 o 31 días)
+    let daysElapsed: number;
+    if (loan.paymentFrequency === "MONTHLY" || loan.paymentFrequency === "QUARTERLY") {
+      // Método 30/360: calcular meses completos × 30 + días proporcionales
+      const year1 = referenceDate.getFullYear();
+      const month1 = referenceDate.getMonth();
+      const day1 = referenceDate.getDate();
+      
+      const year2 = normalizedPaymentDate.getFullYear();
+      const month2 = normalizedPaymentDate.getMonth();
+      const day2 = normalizedPaymentDate.getDate();
+      
+      // Calcular diferencia de meses completos
+      const monthsDiff = (year2 - year1) * 12 + (month2 - month1);
+      
+      if (monthsDiff === 0) {
+        // Mismo mes: usar días reales pero máximo 30
+        daysElapsed = Math.min(30, Math.max(1, day2 - day1));
+      } else {
+        // Meses completos × 30 + días del mes inicial + días del mes final
+        // Días del mes inicial: 30 - día1 (días restantes del mes)
+        // Días del mes final: día2 (días transcurridos del mes)
+        const daysFromStartMonth = 30 - day1;
+        const daysFromEndMonth = day2;
+        daysElapsed = (monthsDiff - 1) * 30 + daysFromStartMonth + daysFromEndMonth;
+      }
+      
+      // Asegurar mínimo de 1 día
+      daysElapsed = Math.max(1, daysElapsed);
+    } else {
+      // Para diarios, semanales y quincenales: usar días reales
+      daysElapsed = Math.max(1, Math.floor(
+        (normalizedPaymentDate.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24)
+      ));
+    }
     
     // Calcular el interés base según días transcurridos
     let baseInterest = 0;
@@ -266,6 +300,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
   const { watch } = form;
   const capitalAmount = watch("capitalAmount");
   const interestAmount = watch("interestAmount");
+  const paymentDate = watch("paymentDate");
 
   console.log("=== FORM VALUES DEBUG ===");
   console.log("capitalAmount:", capitalAmount, "type:", typeof capitalAmount);
@@ -287,15 +322,12 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
 
   // Actualizar el interés cuando cambia la fecha de pago
   useEffect(() => {
-    const subscription = form.watch((value, { name }) => {
-      if (name === "paymentDate" && value.paymentDate) {
-        const newInterest = Math.round(calculateCurrentInterest(value.paymentDate));
-        setCurrentInterest(newInterest);
-        form.setValue("interestAmount", newInterest);
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form]);
+    if (paymentDate) {
+      const newInterest = Math.round(calculateCurrentInterest(paymentDate));
+      setCurrentInterest(newInterest);
+      form.setValue("interestAmount", newInterest, { shouldValidate: false });
+    }
+  }, [paymentDate, form, loan.payments, loan.startDate, loan.balance, loan.interestType, loan.interestRate, loan.paymentFrequency]);
 
   // Ajustar automáticamente el capitalAmount si es mayor al saldo pendiente
   useEffect(() => {

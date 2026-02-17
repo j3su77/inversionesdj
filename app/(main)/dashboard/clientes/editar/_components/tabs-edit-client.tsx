@@ -11,8 +11,8 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/utils";
-import { useState } from "react";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { AddClientForm } from "../../_components/add-client-form";
@@ -21,6 +21,7 @@ import { AddDocumentUtilityBill } from "../../_components/add-document-utilityBi
 import { IndependentClientStatusToggle } from "../../_components/client-status-form";
 import { Client, Document, Loan, Payment } from "@prisma/client";
 import Link from "next/link";
+import axios from "axios";
 
 interface CreditStats {
   totalLoans: number;
@@ -47,16 +48,56 @@ interface ClientSegment {
   paymentBehavior: "excelente" | "bueno" | "regular" | "malo";
 }
 
+interface ClientProfileResponse {
+  riskLevel: "bajo" | "medio" | "alto";
+  incomeCategory: "A" | "B" | "C" | "D";
+  paymentBehavior: "excelente" | "bueno" | "regular" | "malo";
+}
+
 export const TabsEditClient = ({
   client,
   creditStats,
 }: TabsEditClientProps) => {
   const [editBasicInfo, setEditBasicInfo] = useState(false);
+  const [clientProfile, setClientProfile] = useState<ClientProfileResponse | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
-  // En tu página, después de obtener el cliente:
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const clientProfile = calculateClientProfile(client as any);
-  const clientWithProfile = { ...client, ...clientProfile };
+  // Obtener el perfil del cliente desde el endpoint API
+  useEffect(() => {
+    const fetchClientProfile = async () => {
+      try {
+        setIsLoadingProfile(true);
+        const { data } = await axios.get<ClientProfileResponse>(
+          `/api/clients/${client.id}/profile`
+        );
+        console.log({dataprofile: data})
+
+        setClientProfile(data);
+        
+      } catch (error) {
+        console.error("Error al obtener el perfil del cliente:", error);
+        // En caso de error, usar valores por defecto
+        setClientProfile({
+          riskLevel: "medio",
+          incomeCategory: "D",
+          paymentBehavior: "excelente",
+        });
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+
+    fetchClientProfile();
+  }, [client.id]);
+
+  const clientWithProfile = clientProfile
+    ? { ...client, ...clientProfile }
+    : {
+        ...client,
+        riskLevel: "medio" as const,
+        incomeCategory: "D" as const,
+        paymentBehavior: "excelente" as const,
+      };
 
   return (
     <Tabs defaultValue="info" className="w-full">
@@ -462,8 +503,7 @@ export const TabsEditClient = ({
                             Préstamo #{loan.id.slice(0, 8)}
                           </h3>
                           <p className="text-sm text-muted-foreground">
-                            {loan.startDate.toLocaleDateString()} -{" "}
-                            {loan.endDate.toLocaleDateString()}
+                            {formatDate(loan.startDate)} - {formatDate(loan.endDate)}
                           </p>
                         </div>
                         <Badge
@@ -605,163 +645,4 @@ function getPaymentBehaviorDescription(behavior?: string) {
     malo: "Más del 25% de pagos atrasados o en mora",
   };
   return descriptions[behavior || ""] || "Sin historial suficiente";
-}
-
-
-// Función para calcular el perfil del cliente
-function calculateClientProfile(
-  client: Client & { loans: (Loan & { payments: Payment[] })[] }
-): ClientSegment {
-  // 1. Calcular categoría de ingresos
-  let incomeCategory: "A" | "B" | "C" | "D" = "D";
-  if (client.monthlyIncome) {
-    if (client.monthlyIncome >= 10000000) incomeCategory = "A";
-    else if (client.monthlyIncome >= 6000000) incomeCategory = "B";
-    else if (client.monthlyIncome >= 1000000) incomeCategory = "C";
-    else incomeCategory = "D";
-  }
-
-  // 2. Calcular comportamiento de pagos basado en historial real
-  let paymentBehavior: "excelente" | "bueno" | "regular" | "malo" = "excelente";
-
-  if (client.loans.length > 0) {
-    let totalLatePayments = 0;
-    let totalPayments = 0;
-    let totalActiveLoans = 0;
-
-    client.loans.forEach((loan) => {
-      totalPayments += loan.payments.length;
-
-      // Contar préstamos activos
-      if (loan.status === "ACTIVE" || loan.status === "PENDING") {
-        totalActiveLoans++;
-
-        // Verificar si hay pagos vencidos (nextPaymentDate en el pasado)
-        if (
-          loan.nextPaymentDate &&
-          loan.nextPaymentDate < new Date() &&
-          loan.balance > 0
-        ) {
-          totalLatePayments++;
-        }
-      }
-
-      // Analizar historial de pagos para detectar patrones de retraso
-      // Calcular fechas esperadas vs fechas reales de pago
-      loan.payments.forEach((payment, index) => {
-        const expectedDate = calculateExpectedPaymentDate(
-          loan.startDate,
-          index + 1,
-          loan.paymentFrequency
-        );
-        const actualDate = new Date(payment.paymentDate);
-
-        // Si el pago se hizo más de 5 días después de la fecha esperada, contar como tardío
-        const daysDifference = Math.floor(
-          (actualDate.getTime() - expectedDate.getTime()) /
-            (1000 * 60 * 60 * 24)
-        );
-        if (daysDifference > 5) {
-          totalLatePayments++;
-        }
-      });
-    });
-
-    // Calcular el comportamiento basado en el porcentaje de pagos atrasados
-    const latePaymentRate =
-      totalPayments > 0 ? (totalLatePayments / totalPayments) * 100 : 0;
-
-    if (latePaymentRate === 0) {
-      paymentBehavior = "excelente";
-    } else if (latePaymentRate <= 10) {
-      paymentBehavior = "bueno";
-    } else if (latePaymentRate <= 25) {
-      paymentBehavior = "regular";
-    } else {
-      paymentBehavior = "malo";
-    }
-
-    // Ajustar comportamiento si hay préstamos activos en mora
-    if (totalActiveLoans > 0 && totalLatePayments > 0) {
-      const overdueRate = (totalLatePayments / totalActiveLoans) * 100;
-      if (overdueRate > 50) {
-        paymentBehavior = "malo";
-      } else if (overdueRate > 25) {
-        paymentBehavior = "regular";
-      }
-    }
-  }
-
-  // 3. Calcular nivel de riesgo (combina ingresos y comportamiento de pagos)
-  let riskLevel: "bajo" | "medio" | "alto" = "medio";
-
-  // Matriz de riesgo basada en ingresos y comportamiento
-  if (incomeCategory === "A" || incomeCategory === "B") {
-    if (paymentBehavior === "excelente" || paymentBehavior === "bueno") {
-      riskLevel = "bajo";
-    } else if (paymentBehavior === "regular") {
-      riskLevel = "medio";
-    } else {
-      riskLevel = "alto";
-    }
-  } else if (incomeCategory === "C") {
-    if (paymentBehavior === "excelente") {
-      riskLevel = "bajo";
-    } else if (paymentBehavior === "bueno" || paymentBehavior === "regular") {
-      riskLevel = "medio";
-    } else {
-      riskLevel = "alto";
-    }
-  } else {
-    // incomeCategory === "D"
-    if (paymentBehavior === "excelente") {
-      riskLevel = "medio";
-    } else {
-      riskLevel = "alto";
-    }
-  }
-
-  // Ajustar riesgo si no hay historial crediticio
-  if (client.loans.length === 0) {
-    riskLevel = "medio"; // Sin historial = riesgo medio
-    paymentBehavior = "excelente"; // Sin historial negativo
-  }
-
-  return {
-    riskLevel,
-    incomeCategory,
-    paymentBehavior,
-  };
-}
-
-// Función auxiliar para calcular la fecha esperada de pago
-function calculateExpectedPaymentDate(
-  startDate: Date,
-  installmentNumber: number,
-  frequency: string
-): Date {
-  const start = new Date(startDate);
-
-  switch (frequency) {
-    case "DAILY":
-      return new Date(
-        start.getTime() + (installmentNumber - 1) * 24 * 60 * 60 * 1000
-      );
-    case "WEEKLY":
-      return new Date(
-        start.getTime() + (installmentNumber - 1) * 7 * 24 * 60 * 60 * 1000
-      );
-    case "BIWEEKLY":
-      return new Date(
-        start.getTime() + (installmentNumber - 1) * 15 * 24 * 60 * 60 * 1000
-      );
-    case "MONTHLY":
-      const monthlyDate = new Date(start);
-      monthlyDate.setMonth(monthlyDate.getMonth() + (installmentNumber - 1));
-      return monthlyDate;
-    default:
-      return new Date(
-        start.getTime() + (installmentNumber - 1) * 30 * 24 * 60 * 60 * 1000
-      );
-  }
 }
