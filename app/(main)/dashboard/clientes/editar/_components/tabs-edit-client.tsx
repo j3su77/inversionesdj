@@ -11,8 +11,8 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/utils";
-import { useState } from "react";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { AddClientForm } from "../../_components/add-client-form";
@@ -21,6 +21,7 @@ import { AddDocumentUtilityBill } from "../../_components/add-document-utilityBi
 import { IndependentClientStatusToggle } from "../../_components/client-status-form";
 import { Client, Document, Loan, Payment } from "@prisma/client";
 import Link from "next/link";
+import axios from "axios";
 
 interface CreditStats {
   totalLoans: number;
@@ -47,16 +48,56 @@ interface ClientSegment {
   paymentBehavior: "excelente" | "bueno" | "regular" | "malo";
 }
 
+interface ClientProfileResponse {
+  riskLevel: "bajo" | "medio" | "alto";
+  incomeCategory: "A" | "B" | "C" | "D";
+  paymentBehavior: "excelente" | "bueno" | "regular" | "malo";
+}
+
 export const TabsEditClient = ({
   client,
   creditStats,
 }: TabsEditClientProps) => {
   const [editBasicInfo, setEditBasicInfo] = useState(false);
+  const [clientProfile, setClientProfile] = useState<ClientProfileResponse | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
-  // En tu página, después de obtener el cliente:
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const clientProfile = calculateClientProfile(client as any);
-  const clientWithProfile = { ...client, ...clientProfile };
+  // Obtener el perfil del cliente desde el endpoint API
+  useEffect(() => {
+    const fetchClientProfile = async () => {
+      try {
+        setIsLoadingProfile(true);
+        const { data } = await axios.get<ClientProfileResponse>(
+          `/api/clients/${client.id}/profile`
+        );
+        console.log({dataprofile: data})
+
+        setClientProfile(data);
+        
+      } catch (error) {
+        console.error("Error al obtener el perfil del cliente:", error);
+        // En caso de error, usar valores por defecto
+        setClientProfile({
+          riskLevel: "medio",
+          incomeCategory: "D",
+          paymentBehavior: "excelente",
+        });
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+
+    fetchClientProfile();
+  }, [client.id]);
+
+  const clientWithProfile = clientProfile
+    ? { ...client, ...clientProfile }
+    : {
+        ...client,
+        riskLevel: "medio" as const,
+        incomeCategory: "D" as const,
+        paymentBehavior: "excelente" as const,
+      };
 
   return (
     <Tabs defaultValue="info" className="w-full">
@@ -465,8 +506,7 @@ export const TabsEditClient = ({
                             Préstamo #{loan.loanNumber}
                           </h3>
                           <p className="text-sm text-muted-foreground">
-                            {loan.startDate.toLocaleDateString()} -{" "}
-                            {loan.endDate.toLocaleDateString()}
+                            {formatDate(loan.startDate)} - {formatDate(loan.endDate)}
                           </p>
                         </div>
                         <Badge

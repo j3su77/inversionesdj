@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { addDays, addMonths, addWeeks } from "date-fns";
+import { createLoanAuditLog } from "@/lib/loan-audit";
 
 // interface AccountSelection {
 //     accountId: string;
@@ -63,36 +64,69 @@ export async function POST(req: Request) {
     // El monto de la cuota base (capital) es el mismo para ambos tipos
     const baseFeeAmount = totalAmount / installments;
 
-    // Calcular el interés diario
-    // Interés mensual = monto * tasa / 100
-    // Interés diario = interés mensual / 30
-    const calculateDailyInterest = (amount: number, rate: number): number => {
-      const monthlyInterest = amount * (rate / 100);
-      return monthlyInterest / 30;
-    };
-
-    // Calcular días según la frecuencia de pago
-    const getDaysForFrequency = (frequency: string): number => {
-      switch (frequency) {
-        case "DAILY":
-          return 1;
-        case "WEEKLY":
-          return 7;
-        case "BIWEEKLY":
-          return 15;
-        case "MONTHLY":
-          return 30;
-        case "QUARTERLY":
-          return 90;
-        default:
-          return 30;
+    // Función auxiliar para calcular los días del período programado basado en la frecuencia
+    // Para pagos diarios, semanales y quincenales: usar 30 días como base fija
+    // Para pagos mensuales y trimestrales: calcular días reales entre fechas programadas
+    const getDaysInPeriod = (
+      referenceDate: Date,
+      paymentFrequency: string
+    ): number => {
+      // Para pagos diarios, semanales y quincenales, usar 30 días como base
+      if (paymentFrequency === "DAILY" || paymentFrequency === "WEEKLY" || paymentFrequency === "BIWEEKLY") {
+        return 30;
       }
+      
+      // Para pagos mensuales y trimestrales, calcular días reales
+      const normalizedRef = new Date(referenceDate);
+      normalizedRef.setHours(0, 0, 0, 0);
+      
+      // Calcular la fecha del próximo pago programado según la frecuencia
+      const nextProgrammedDate = new Date(normalizedRef);
+      
+      switch (paymentFrequency) {
+        case "MONTHLY":
+          // Mantener el mismo día del mes (ej: 15 de enero -> 15 de febrero)
+          nextProgrammedDate.setMonth(nextProgrammedDate.getMonth() + 1);
+          break;
+        case "QUARTERLY":
+          nextProgrammedDate.setMonth(nextProgrammedDate.getMonth() + 3);
+          break;
+        default:
+          nextProgrammedDate.setMonth(nextProgrammedDate.getMonth() + 1);
+      }
+      
+      // Calcular los días reales entre las fechas
+      const daysDiff = Math.floor(
+        (nextProgrammedDate.getTime() - normalizedRef.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      
+      return Math.max(1, daysDiff);
     };
 
-    // Calcular el interés ajustado según la frecuencia de pago
-    const daysForFrequency = getDaysForFrequency(paymentFrequency);
-    const dailyInterest = calculateDailyInterest(totalAmount, interestRate);
-    const adjustedInterestAmount = dailyInterest * daysForFrequency;
+    // Función para calcular el interés según días transcurridos
+    // Interés mensual = monto * tasa / 100
+    // Interés para el período = interés mensual * (días transcurridos / días del período programado)
+    const calculateInterestByDays = (
+      amount: number,
+      interestRate: number,
+      daysElapsed: number,
+      daysInPeriod: number
+    ): number => {
+      const monthlyInterest = amount * (interestRate / 100);
+      // Calcular el interés proporcional basado en los días reales del período
+      return (monthlyInterest / daysInPeriod) * daysElapsed;
+    };
+
+    // Calcular los días reales del período programado basado en la frecuencia
+    const daysInPeriod = getDaysInPeriod(normalizedStartDate, paymentFrequency);
+    
+    // Calcular el interés ajustado según la frecuencia de pago usando días reales
+    const adjustedInterestAmount = calculateInterestByDays(
+      totalAmount, 
+      interestRate, 
+      daysInPeriod, 
+      daysInPeriod
+    );
 
     // Para interés fijo:
     // - Cada cuota incluye el pago de capital (baseFeeAmount)
@@ -107,7 +141,12 @@ export async function POST(req: Request) {
       interestType === "FIXED" ? adjustedInterestAmount : null;
     
     // Calcular el interés inicial para préstamos decrecientes (sobre el saldo total)
-    const initialDecreasingInterest = calculateDailyInterest(totalAmount, interestRate) * daysForFrequency;
+    const initialDecreasingInterest = calculateInterestByDays(
+      totalAmount, 
+      interestRate, 
+      daysInPeriod, 
+      daysInPeriod
+    );
     
     // Para FIXED: cuota = capital + interés estimado (se calculará dinámicamente en cada pago)
     // Para DECREASING: cuota base = solo capital (el interés se calcula dinámicamente según días)
@@ -248,6 +287,21 @@ export async function POST(req: Request) {
         return loan
     })
 
+    // Registrar auditoría de creación
+    await createLoanAuditLog({
+        loanId: loan.id,
+        action: "CREATED",
+        description: `Préstamo creado para el cliente. Monto: ${totalAmount}, Cuotas: ${installments}`,
+        newData: {
+            loanNumber: loan.loanNumber,
+            totalAmount: loan.totalAmount,
+            installments: loan.installments,
+            interestRate: loan.interestRate,
+            interestType: loan.interestType,
+            paymentFrequency: loan.paymentFrequency,
+            status: loan.status,
+        },
+    })
    
     const completeLoan = await prisma.loan.findUnique({
         where: { id: loan.id },

@@ -34,6 +34,7 @@ import { Banner } from "@/components/banner";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { getManagers, type ManagerUser } from "@/actions/users";
 import { checkClientIdentification } from "@/actions/clients";
+import { FormattedInput } from "@/components/ui/formatted-input";
 
 interface AddClientFormProps {
   client?: Client | null;
@@ -458,26 +459,24 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
                   <FormField
                     control={form.control}
                     name="monthlyIncome"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Ingreso mensual</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            disabled={isSubmitting}
-                            {...field}
-                            value={field.value ?? ""}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              field.onChange(
-                                value === "" ? undefined : Number(value)
-                              );
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const { value, onChange, ...rest } = field;
+                      return (
+                        <FormItem>
+                          <FormLabel>Ingreso mensual</FormLabel>
+                          <FormControl>
+                            <FormattedInput
+                              placeholder="$"
+                              value={value ? value : ""}
+                              disabled={isSubmitting}
+                              {...rest}
+                              onChange={(val) => onChange(Number(val))}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
                   />
                   <FormField
                     control={form.control}

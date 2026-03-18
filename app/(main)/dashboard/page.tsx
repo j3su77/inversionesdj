@@ -28,6 +28,7 @@ export default function DashboardPage() {
 
       -- si la cuota es mayor al monto que se debe, deberia colocar este valor en el campo de capital   */}
       
+     
 
       {/* Indicadores de Préstamos */}
       <div>
