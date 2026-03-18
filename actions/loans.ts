@@ -40,10 +40,17 @@ export const getLoanPayments = async (loanId: string) => {
 
 export type LoanStatusFilter = "active" | "dueToday" | "paid" | "overdue" | "cancelled" | "all";
 
-export const getLoansByStatus = async (status: LoanStatusFilter) => {
+export const getLoansByStatus = async (
+  status: LoanStatusFilter,
+  managedByUserId?: string | null
+) => {
   try {
     const today = new Date();
     const whereClause: Prisma.LoanWhereInput = {};
+
+    if (managedByUserId) {
+      whereClause.managedByUserId = managedByUserId;
+    }
 
     switch (status) {
       case "active":
@@ -90,6 +97,12 @@ export const getLoansByStatus = async (status: LoanStatusFilter) => {
             identification: true,
             phone: true,
             cellphone: true,
+          },
+        },
+        managedBy: {
+          select: {
+            id: true,
+            username: true,
           },
         },
         payments: {

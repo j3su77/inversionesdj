@@ -54,9 +54,36 @@ export const getClientBySearch = async (query: string): Promise<Client[]> => {
     });
 };
 
+/**
+ * Verifica en tiempo real si ya existe un cliente con esa identificación.
+ * excludeClientId: al editar, excluir el propio cliente del chequeo.
+ */
+export const checkClientIdentification = async (
+    identification: number | string,
+    excludeClientId?: string | null
+): Promise<{ available: boolean; message?: string }> => {
+    const num = typeof identification === "string" ? parseInt(identification, 10) : identification;
+    if (isNaN(num) || num < 1) {
+        return { available: true };
+    }
+    const existing = await db.client.findFirst({
+        where: {
+            identification: num,
+            deletedAt: null,
+            ...(excludeClientId ? { id: { not: excludeClientId } } : {}),
+        },
+    });
+    return existing
+        ? { available: false, message: "Número de documento ya registrado" }
+        : { available: true };
+};
+
 export type ClientStatusFilter = "active" | "inactive" | "blocked" | "all";
 
-export const getClientsByStatus = async (status: ClientStatusFilter): Promise<Client[]> => {
+export const getClientsByStatus = async (
+    status: ClientStatusFilter,
+    managedByUserId?: string | null
+): Promise<Client[]> => {
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
@@ -147,6 +174,13 @@ export const getClientsByStatus = async (status: ClientStatusFilter): Promise<Cl
             break;
 
         // "all" no necesita filtros adicionales
+    }
+
+    if (managedByUserId) {
+        baseWhere.AND = [
+            ...(Array.isArray(baseWhere.AND) ? baseWhere.AND : []),
+            { managedByUserId },
+        ];
     }
 
     return await db.client.findMany({

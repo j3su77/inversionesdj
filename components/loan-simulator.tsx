@@ -141,30 +141,35 @@ export const LoanSimulator = () => {
     let totalInterest = 0;
     let fixedInterestAmount = 0;
 
-    if (interestType === "FIXED") {
-      // Para interés fijo: interés total = monto * tasa
-      const baseInterestAmount = totalAmount * (interestRate / 100);
-      
-      // Ajustar el interés según la frecuencia de pago
-      switch (paymentFrequency) {
+    // Función para calcular el interés diario
+    const calculateDailyInterest = (amount: number, rate: number): number => {
+      const monthlyInterest = amount * (rate / 100);
+      return monthlyInterest / 30;
+    };
+
+    // Calcular días según la frecuencia de pago
+    const getDaysForFrequency = (frequency: string): number => {
+      switch (frequency) {
         case "DAILY":
-          fixedInterestAmount = baseInterestAmount / 30;
-          break;
+          return 1;
         case "WEEKLY":
-          fixedInterestAmount = baseInterestAmount / 4;
-          break;
+          return 7;
         case "BIWEEKLY":
-          fixedInterestAmount = baseInterestAmount / 2;
-          break;
+          return 15;
         case "MONTHLY":
-          fixedInterestAmount = baseInterestAmount; // Se mantiene igual
-          break;
+          return 30;
         case "QUARTERLY":
-          fixedInterestAmount = baseInterestAmount * 3;
-          break;
+          return 90;
         default:
-          fixedInterestAmount = baseInterestAmount;
+          return 30;
       }
+    };
+
+    if (interestType === "FIXED") {
+      // Para interés fijo: calcular interés diario y multiplicar por días de frecuencia
+      const dailyInterest = calculateDailyInterest(totalAmount, interestRate);
+      const daysForFrequency = getDaysForFrequency(paymentFrequency);
+      fixedInterestAmount = dailyInterest * daysForFrequency;
     }
 
     for (let i = 1; i <= installments; i++) {
@@ -172,36 +177,16 @@ export const LoanSimulator = () => {
       let capitalAmount: number;
 
       if (interestType === "FIXED") {
-        // Interés fijo sobre el monto inicial
-        interestAmount = fixedInterestAmount;
+        // Interés fijo: calcular según días de frecuencia
+        const dailyInterest = calculateDailyInterest(totalAmount, interestRate);
+        const daysForFrequency = getDaysForFrequency(paymentFrequency);
+        interestAmount = dailyInterest * daysForFrequency;
         capitalAmount = baseCapitalAmount;
       } else {
-        // Interés decreciente sobre saldo pendiente, ajustado según frecuencia
-        const baseInterest = remainingBalance * (interestRate / 100);
-        let adjustedInterest = baseInterest;
-        
-        // Ajustar el interés según la frecuencia
-        switch (paymentFrequency) {
-          case "DAILY":
-            adjustedInterest = baseInterest / 30;
-            break;
-          case "WEEKLY":
-            adjustedInterest = baseInterest / 4;
-            break;
-          case "BIWEEKLY":
-            adjustedInterest = baseInterest / 2;
-            break;
-          case "MONTHLY":
-            adjustedInterest = baseInterest;
-            break;
-          case "QUARTERLY":
-            adjustedInterest = baseInterest * 3;
-            break;
-          default:
-            adjustedInterest = baseInterest;
-        }
-        
-        interestAmount = adjustedInterest;
+        // Interés decreciente: calcular interés diario sobre saldo y multiplicar por días
+        const dailyInterest = calculateDailyInterest(remainingBalance, interestRate);
+        const daysForFrequency = getDaysForFrequency(paymentFrequency);
+        interestAmount = dailyInterest * daysForFrequency;
         capitalAmount = baseCapitalAmount;
       }
 

@@ -15,7 +15,7 @@ export const TitlePage = ({
       <div className="w-full m-2 mx-3 flex flex-col md:flex-row md:items-center md:justify-between items-start gap-1">
         <div className="flex gap-3 items-center">
           {Icon && <Icon className="w-12 h-12 text-primary" />}
-          <h2 className="text-3xl font-bold w-full">{text}</h2>
+          <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold w-full">{text}</h2>
         </div>
         {!!children && <div className="flex w-fit justify-end">{children}</div>}
       </div>

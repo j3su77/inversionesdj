@@ -1,5 +1,6 @@
 "use client"
 import { SimpleModal } from "@/components/simple-modal";
+import { LogOut } from "lucide-react";
 import { signOut } from "next-auth/react";
 
 export const ModalLogout = () => {
@@ -9,8 +10,8 @@ export const ModalLogout = () => {
   return (
     <SimpleModal
       title="¿Estás seguro de cerrar sesión?"
-      textBtn="Salir"
-      btnClass="px-4 py-2 rounded hover:bg-red-600"
+      textBtn={<LogOut className="h-4 w-4" />}
+      btnClass="px-2 py-2 rounded hover:bg-red-600"
       onAccept={() => onAccept()}
       large={false}
     >

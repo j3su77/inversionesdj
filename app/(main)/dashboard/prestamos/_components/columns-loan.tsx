@@ -4,7 +4,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown, Eye } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 
-import { Loan, PaymentFrequency } from "@prisma/client";
+import { Loan, LoanStatus, PaymentFrequency } from "@prisma/client";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
 
@@ -20,6 +20,23 @@ const translatePaymentFrequency = (frequency: PaymentFrequency) => {
       return "Diario";
     default:
       return "N/A";
+  }
+};
+
+const getLoanStatusText = (status: LoanStatus) => {
+  switch (status) {
+    case "ACTIVE":
+      return "Activo";
+    case "COMPLETED":
+      return "Pagado";
+    case "CANCELLED":
+      return "Cancelado";
+    case "DEFAULTED":
+      return "En mora";
+    case "PENDING":
+      return "Pendiente";
+    default:
+      return status;
   }
 };
 
@@ -217,7 +234,10 @@ export const columnsLoan: ColumnDef<
   {
     accessorKey: "Intereses pagados",
     accessorFn: (value) => {
-      const totalInterestPaid = value.payments.reduce((sum, payment) => sum + payment.interestAmount, 0);
+      const totalInterestPaid = value.payments.reduce(
+        (sum, payment) => sum + payment.interestAmount,
+        0,
+      );
       return formatCurrency({ value: totalInterestPaid });
     },
     header: ({ column }) => {
@@ -232,7 +252,10 @@ export const columnsLoan: ColumnDef<
       );
     },
     cell: ({ row }) => {
-      const totalInterestPaid = row.original.payments.reduce((sum, payment) => sum + payment.interestAmount, 0);
+      const totalInterestPaid = row.original.payments.reduce(
+        (sum, payment) => sum + payment.interestAmount,
+        0,
+      );
       const formattedAmount = formatCurrency({ value: totalInterestPaid });
       return <div className="">{formattedAmount}</div>;
     },
@@ -259,6 +282,25 @@ export const columnsLoan: ColumnDef<
           {frequency ? translatePaymentFrequency(frequency) : "N/A"}
         </div>
       );
+    },
+  },
+  {
+    accessorKey: "Estado",
+    accessorFn: (value) => value.status,
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Estado
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      const status = row.original.status;
+      return <div className="">{getLoanStatusText(status)}</div>;
     },
   },
   {

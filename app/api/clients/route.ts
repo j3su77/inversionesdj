@@ -10,6 +10,11 @@ export async function POST(req: Request) {
 
       if(!session) return new NextResponse("Unauthorized", {status: 401})
 
+      const { managedByUserId } = values;
+      if (!managedByUserId || typeof managedByUserId !== "string") {
+        return new NextResponse("Debe seleccionar el usuario asignado al cliente", { status: 400 });
+      }
+
       const existingClient = await db.client.findUnique({
           where: { identification: values.identification, deletedAt: null}
       });
@@ -17,11 +22,11 @@ export async function POST(req: Request) {
       if (existingClient) {
           return new NextResponse("Número de documento ya registrado", { status: 400 });
       }
-      
 
       const client = await db.client.create({
           data: {
-              ...values
+              ...values,
+              managedByUserId,
           }
       })
 

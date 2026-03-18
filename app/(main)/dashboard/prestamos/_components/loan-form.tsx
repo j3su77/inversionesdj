@@ -1,6 +1,6 @@
 "use client";
 
-// import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -42,63 +42,83 @@ import {
   PaymentFrequency,
   // Account,
 } from "@prisma/client";
-import {
-  // AccountSelector,
-  // AccountSelection,
-} from "@/components/ui/account-selector";
+import {} from // AccountSelector,
+// AccountSelection,
+"@/components/ui/account-selector";
 // import { getAccounts } from "@/actions/accounts";
 import { ChangeFrequencyForm } from "./change-frequency-form";
+import { getManagers, type ManagerUser } from "@/actions/users";
+import { ProductInfoModal } from "./product-info-modal";
+import { Package, Pencil } from "lucide-react";
 
 interface LoanFormProps {
   client: Client;
   loan?: Loan | null;
   disabled?: boolean;
-} 
+}
 
-const formSchema = z
-  .object({
-    totalAmount: z.coerce
-      .number()
-      .positive("El monto debe ser mayor a 0")
-      .max(1000000000, "El monto no puede exceder 1.000.000.000"),
-    installments: z.coerce
-      .number()
-      .int()
-      .positive("El número de cuotas debe ser mayor a 0")
-      .max(60, "Máximo 60 cuotas permitidas"),
-    interestRate: z.coerce
-      .number()
-      .positive("La tasa de interés debe ser mayor a 0")
-      .max(100, "La tasa no puede exceder 100%"),
-    interestType: z.nativeEnum(InterestType),
-    startDate: z.date({
-      required_error: "La fecha de inicio es requerida",
-    }),
-    paymentFrequency: z.nativeEnum(PaymentFrequency),
-    notes: z.string().optional().nullable(),
-    // accounts: z
-    //   .array(
-    //     z.object({
-    //       accountId: z.string(),
-    //       amount: z.number().positive("El monto debe ser mayor a 0"),
-    //     })
-    //   )
-    //   .min(1, "Debe seleccionar al menos una cuenta"),
-  })
-  // .refine(
-  //   (data) => {
-  //     const totalAssigned = data.accounts.reduce(
-  //       (sum, acc) => sum + acc.amount,
-  //       0
-  //     );
-  //     return Math.abs(totalAssigned - data.totalAmount) < 0.01;
-  //   },
-  //   {
-  //     message:
-  //       "El total asignado a las cuentas debe coincidir con el monto del préstamo",
-  //     path: ["accounts"],
-  //   }
-  // );
+const formSchema = z.object({
+  totalAmount: z.coerce
+    .number()
+    .positive("El monto debe ser mayor a 0")
+    .max(1000000000, "El monto no puede exceder 1.000.000.000"),
+  installments: z.coerce
+    .number()
+    .int()
+    .positive("El número de cuotas debe ser mayor a 0")
+    .max(60, "Máximo 60 cuotas permitidas"),
+  interestRate: z.coerce
+    .number()
+    .positive("La tasa de interés debe ser mayor a 0")
+    .max(100, "La tasa no puede exceder 100%"),
+  interestType: z.nativeEnum(InterestType),
+  startDate: z.date({
+    required_error: "La fecha de inicio es requerida",
+  }),
+  paymentFrequency: z.nativeEnum(PaymentFrequency),
+  notes: z.string().optional().nullable(),
+  coDebtor: z
+    .object({
+      fullName: z.string().optional().nullable(),
+      identification: z.string().optional().nullable(),
+      position: z.string().optional().nullable(),
+      phone: z.string().optional().nullable(),
+    })
+    .optional()
+    .nullable(),
+  managedByUserId: z.string().min(1, "Debe seleccionar el usuario asignado"),
+  productInfo: z
+    .object({
+      productName: z.string().nullable(),
+      supplierName: z.string().nullable(),
+      cost: z.number().nullable(),
+      paymentDate: z.string().nullable(),
+    })
+    .optional()
+    .nullable(),
+  // accounts: z
+  //   .array(
+  //     z.object({
+  //       accountId: z.string(),
+  //       amount: z.number().positive("El monto debe ser mayor a 0"),
+  //     })
+  //   )
+  //   .min(1, "Debe seleccionar al menos una cuenta"),
+});
+// .refine(
+//   (data) => {
+//     const totalAssigned = data.accounts.reduce(
+//       (sum, acc) => sum + acc.amount,
+//       0
+//     );
+//     return Math.abs(totalAssigned - data.totalAmount) < 0.01;
+//   },
+//   {
+//     message:
+//       "El total asignado a las cuentas debe coincidir con el monto del préstamo",
+//     path: ["accounts"],
+//   }
+// );
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -118,10 +138,44 @@ const interestTypeOptions = [
 export function LoanForm({ client, loan, disabled }: LoanFormProps) {
   const router = useRouter();
   const isEdit = Boolean(loan);
-  // const [accounts, setAccounts] = useState<Account[]>([]);
-  // const [selectedAccounts, setSelectedAccounts] = useState<AccountSelection[]>(
-  //   []
-  // );
+  const [managers, setManagers] = useState<ManagerUser[]>([]);
+  const [productInfoModalOpen, setProductInfoModalOpen] = useState(false);
+
+  useEffect(() => {
+    getManagers().then(setManagers);
+  }, []);
+
+  const loanCoDebtor = (loan as Loan & { coDebtor?: unknown })?.coDebtor;
+  const initialCoDebtor: FormValues["coDebtor"] =
+    loanCoDebtor != null &&
+    typeof loanCoDebtor === "object" &&
+    !Array.isArray(loanCoDebtor)
+      ? {
+          fullName: (loanCoDebtor as { fullName?: string }).fullName ?? null,
+          identification:
+            (loanCoDebtor as { identification?: string }).identification ??
+            null,
+          position: (loanCoDebtor as { position?: string }).position ?? null,
+          phone: (loanCoDebtor as { phone?: string }).phone ?? null,
+        }
+      : null;
+
+  const loanProductInfo = (loan as Loan & { productInfo?: unknown })
+    ?.productInfo;
+  const initialProductInfo: FormValues["productInfo"] =
+    loanProductInfo != null &&
+    typeof loanProductInfo === "object" &&
+    !Array.isArray(loanProductInfo)
+      ? {
+          productName:
+            (loanProductInfo as { productName?: string }).productName ?? null,
+          supplierName:
+            (loanProductInfo as { supplierName?: string }).supplierName ?? null,
+          cost: (loanProductInfo as { cost?: number }).cost ?? null,
+          paymentDate:
+            (loanProductInfo as { paymentDate?: string }).paymentDate ?? null,
+        }
+      : null;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -133,9 +187,14 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
       startDate: loan?.startDate || new Date(),
       paymentFrequency: loan?.paymentFrequency || "MONTHLY",
       notes: loan?.notes || "",
+      coDebtor: initialCoDebtor,
+      productInfo: initialProductInfo,
+      managedByUserId:
+        (loan as Loan & { managedByUserId?: string | null })?.managedByUserId ??
+        "",
       // accounts: [],
     },
-    mode: "onChange"
+    mode: "onChange",
   });
 
   const { isSubmitting, isValid } = form.formState;
@@ -176,7 +235,7 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
         const response = await fetch("/api/loans", {
           method: "POST",
           body: JSON.stringify({
-            ...values,  
+            ...values,
             clientId: client.id,
           }),
         });
@@ -187,7 +246,7 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
         }
 
         const data = await response.json();
-        console.log({prestamo: data});
+    
         router.push(`/dashboard/prestamos/gestionar/${data.id}`);
         toast.success("Préstamo creado correctamente");
       }
@@ -195,7 +254,7 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
     } catch (error) {
       console.error(error);
       toast.error(
-        error instanceof Error ? error.message : "Ocurrió un error inesperado"
+        error instanceof Error ? error.message : "Ocurrió un error inesperado",
       );
     }
   };
@@ -232,7 +291,12 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
                 <FormItem>
                   <FormLabel>Número de Cuotas</FormLabel>
                   <FormControl>
-                    <Input type="number" {...field} value={field.value || ""} disabled={disabled} />
+                    <Input
+                      type="number"
+                      {...field}
+                      value={field.value || ""}
+                      disabled={disabled}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -301,7 +365,7 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
                           variant={"outline"}
                           className={cn(
                             "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
+                            !field.value && "text-muted-foreground",
                           )}
                           disabled={disabled}
                         >
@@ -342,19 +406,23 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
                       <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
                         <div>
                           <p className="font-medium">
-                            {paymentFrequencyOptions.find(opt => opt.value === loan.paymentFrequency)?.label}
+                            {
+                              paymentFrequencyOptions.find(
+                                (opt) => opt.value === loan.paymentFrequency,
+                              )?.label
+                            }
                           </p>
                           <p className="text-sm text-muted-foreground">
                             Frecuencia actual de pago
                           </p>
                         </div>
-                        <ChangeFrequencyForm 
-                          loan={loan} 
+                        <ChangeFrequencyForm
+                          loan={loan}
                           onSuccess={() => {
                             window.location.reload();
                           }}
                           trigger={
-                            <Button variant="outline" size="sm" >
+                            <Button variant="outline" size="sm">
                               Cambiar
                             </Button>
                           }
@@ -392,13 +460,235 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
                 <FormItem>
                   <FormLabel>Notas</FormLabel>
                   <FormControl>
-                    <Input placeholder="Notas adicionales..." {...field} value={field.value || ""} />
+                    <Input
+                      placeholder="Notas adicionales..."
+                      {...field}
+                      value={field.value || ""}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
           </div>
+
+          <div className="space-y-4 border rounded-md p-4">
+            <p className="font-medium">Codeudor (opcional)</p>
+            <p className="text-sm text-muted-foreground">
+              Puede registrar información básica del codeudor. Este bloque es
+              opcional.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <FormField
+                control={form.control}
+                name="coDebtor.fullName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombres completos</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Nombre del codeudor"
+                        {...field}
+                        value={field.value || ""}
+                        disabled={disabled}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="coDebtor.identification"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cédula</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Documento de identidad"
+                        {...field}
+                        value={field.value || ""}
+                        disabled={disabled}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="coDebtor.position"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cargo</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Cargo u ocupación"
+                        {...field}
+                        value={field.value || ""}
+                        disabled={disabled}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="coDebtor.phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Teléfono</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Teléfono del codeudor"
+                        {...field}
+                        value={field.value || ""}
+                        disabled={disabled}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
+
+          {/* Información del producto (opcional) */}
+          <div className="space-y-4 border rounded-md p-4">
+            <p className="font-medium flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              Información del producto (opcional)
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Puede asociar un producto al préstamo: nombre, proveedor, costo y
+              fecha de pago.
+            </p>
+            {form.watch("productInfo")?.productName ||
+            form.watch("productInfo")?.supplierName ||
+            form.watch("productInfo")?.cost != null ||
+            form.watch("productInfo")?.paymentDate ? (
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                  {form.watch("productInfo")?.productName && (
+                    <p>
+                      <span className="text-muted-foreground">Producto:</span>{" "}
+                      {form.watch("productInfo")?.productName}
+                    </p>
+                  )}
+                  {form.watch("productInfo")?.supplierName && (
+                    <p>
+                      <span className="text-muted-foreground">Proveedor:</span>{" "}
+                      {form.watch("productInfo")?.supplierName}
+                    </p>
+                  )}
+                  {form.watch("productInfo")?.cost != null && (
+                    <p>
+                      <span className="text-muted-foreground">Costo:</span>{" "}
+                      {Number(form.watch("productInfo")?.cost).toLocaleString(
+                        "es",
+                      )}
+                    </p>
+                  )}
+                  {form.watch("productInfo")?.paymentDate && (
+                    <p>
+                      <span className="text-muted-foreground">
+                        Fecha de pago:
+                      </span>{" "}
+                      {format(
+                        new Date(form.watch("productInfo")!.paymentDate!),
+                        "dd/MM/yyyy",
+                        { locale: es },
+                      )}
+                    </p>
+                  )}
+                </div>
+                {!disabled && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setProductInfoModalOpen(true)}
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Editar
+                  </Button>
+                )}
+              </div>
+            ) : (
+              !disabled && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setProductInfoModalOpen(true)}
+                >
+                  <Package className="h-4 w-4 mr-2" />
+                  Añadir producto
+                </Button>
+              )
+            )}
+            <ProductInfoModal
+              open={productInfoModalOpen}
+              onOpenChange={setProductInfoModalOpen}
+              initialData={
+                form.watch("productInfo")
+                  ? {
+                      productName:
+                        form.watch("productInfo")?.productName ?? null,
+                      supplierName:
+                        form.watch("productInfo")?.supplierName ?? null,
+                      cost: form.watch("productInfo")?.cost ?? null,
+                      paymentDate:
+                        form.watch("productInfo")?.paymentDate ?? null,
+                    }
+                  : null
+              }
+              onSave={(data) => {
+                form.setValue("productInfo", {
+                  productName: data.productName,
+                  supplierName: data.supplierName,
+                  cost: data.cost,
+                  paymentDate: data.paymentDate,
+                });
+              }}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="managedByUserId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Usuario asignado</FormLabel>
+                <p className="text-sm text-muted-foreground">
+                  Seleccione el usuario responsable de este préstamo
+                  (obligatorio).
+                </p>
+                {managers.length === 0 ? (
+                  <p className="text-sm text-amber-600">
+                    No hay usuarios activos.
+                  </p>
+                ) : (
+                  <FormControl>
+                    <div className="flex flex-wrap gap-2">
+                      {managers.map((m) => (
+                        <Button
+                          key={m.id}
+                          type="button"
+                          variant={field.value === m.id ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => field.onChange(m.id)}
+                        >
+                          {m.username}
+                        </Button>
+                      ))}
+                    </div>
+                  </FormControl>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           {/* Selector de Cuentas - Comentado para la primera etapa */}
           {/* {!isEdit && totalAmount > 0 && (

@@ -86,9 +86,20 @@ export const TabsEditClient = ({
             <CardTitle className="flex justify-between">
               {editBasicInfo ? "Editar Información" : "Información Básica"}
 
-              <Button onClick={() => setEditBasicInfo(!editBasicInfo)}>
-                {editBasicInfo ? "Dejar de Editar" : "Editar"}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => setEditBasicInfo(!editBasicInfo)}>
+                  {editBasicInfo ? "Dejar de Editar" : "Editar"}
+                </Button>
+                {/* registrar prestamo */}
+                <Button variant="outline" disabled={client.isDisallowed}>
+                  <Link
+                    passHref
+                    href={`/dashboard/prestamos/registrar?clientId=${client.id}`}
+                  >
+                    Registrar Prestamo
+                  </Link>
+                </Button>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -115,7 +126,7 @@ export const TabsEditClient = ({
                           console.log(
                             `Cliente ${
                               isDisallowed ? "restringido" : "activado"
-                            }`
+                            }`,
                           );
                         }}
                       />
@@ -165,8 +176,8 @@ export const TabsEditClient = ({
                         {client.status === "ACTIVE"
                           ? "Activo"
                           : client.status === "INACTIVE"
-                          ? "Inactivo"
-                          : "Bloqueado"}
+                            ? "Inactivo"
+                            : "Bloqueado"}
                       </Badge>
                       {client.isDisallowed && (
                         <Badge variant="destructive">Restringido</Badge>
@@ -192,14 +203,6 @@ export const TabsEditClient = ({
             <CardTitle>
               <h3 className="font-semibold mb-3">Perfil Crediticio</h3>
             </CardTitle>
-            <Button variant="outline" disabled={client.isDisallowed}>
-              <Link
-                passHref
-                href={`/dashboard/prestamos/registrar?clientId=${client.id}`}
-              >
-                Registrar Prestamo
-              </Link>
-            </Button>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Resumen estadístico */}
@@ -302,8 +305,8 @@ export const TabsEditClient = ({
                       clientWithProfile.riskLevel === "bajo"
                         ? "success"
                         : clientWithProfile.riskLevel === "medio"
-                        ? "warning"
-                        : "destructive"
+                          ? "warning"
+                          : "destructive"
                     }
                   >
                     {clientWithProfile.riskLevel?.toUpperCase() ||
@@ -339,7 +342,7 @@ export const TabsEditClient = ({
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {getIncomeCategoryDescription(
-                    clientWithProfile.incomeCategory
+                    clientWithProfile.incomeCategory,
                   )}
                 </p>
               </div>
@@ -355,10 +358,10 @@ export const TabsEditClient = ({
                       clientWithProfile.paymentBehavior === "excelente"
                         ? "success"
                         : clientWithProfile.paymentBehavior === "bueno"
-                        ? "info"
-                        : clientWithProfile.paymentBehavior === "regular"
-                        ? "warning"
-                        : "destructive"
+                          ? "info"
+                          : clientWithProfile.paymentBehavior === "regular"
+                            ? "warning"
+                            : "destructive"
                     }
                   >
                     {clientWithProfile.paymentBehavior?.toUpperCase() ||
@@ -367,7 +370,7 @@ export const TabsEditClient = ({
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {getPaymentBehaviorDescription(
-                    clientWithProfile.paymentBehavior
+                    clientWithProfile.paymentBehavior,
                   )}
                 </p>
               </div>
@@ -383,8 +386,8 @@ export const TabsEditClient = ({
                   {clientWithProfile.riskLevel === "bajo"
                     ? "Cliente de bajo riesgo. Apto para préstamos con condiciones preferenciales."
                     : clientWithProfile.riskLevel === "medio"
-                    ? "Cliente de riesgo medio. Evaluar condiciones estándar y seguimiento regular."
-                    : "Cliente de alto riesgo. Considerar garantías adicionales y monitoreo frecuente."}
+                      ? "Cliente de riesgo medio. Evaluar condiciones estándar y seguimiento regular."
+                      : "Cliente de alto riesgo. Considerar garantías adicionales y monitoreo frecuente."}
                 </p>
               </div>
             )}
@@ -459,7 +462,7 @@ export const TabsEditClient = ({
                       <div className="flex justify-between items-start">
                         <div>
                           <h3 className="font-medium">
-                            Préstamo #{loan.id.slice(0, 8)}
+                            Préstamo #{loan.loanNumber}
                           </h3>
                           <p className="text-sm text-muted-foreground">
                             {loan.startDate.toLocaleDateString()} -{" "}
@@ -607,10 +610,9 @@ function getPaymentBehaviorDescription(behavior?: string) {
   return descriptions[behavior || ""] || "Sin historial suficiente";
 }
 
-
 // Función para calcular el perfil del cliente
 function calculateClientProfile(
-  client: Client & { loans: (Loan & { payments: Payment[] })[] }
+  client: Client & { loans: (Loan & { payments: Payment[] })[] },
 ): ClientSegment {
   // 1. Calcular categoría de ingresos
   let incomeCategory: "A" | "B" | "C" | "D" = "D";
@@ -652,14 +654,14 @@ function calculateClientProfile(
         const expectedDate = calculateExpectedPaymentDate(
           loan.startDate,
           index + 1,
-          loan.paymentFrequency
+          loan.paymentFrequency,
         );
         const actualDate = new Date(payment.paymentDate);
 
         // Si el pago se hizo más de 5 días después de la fecha esperada, contar como tardío
         const daysDifference = Math.floor(
           (actualDate.getTime() - expectedDate.getTime()) /
-            (1000 * 60 * 60 * 24)
+            (1000 * 60 * 60 * 24),
         );
         if (daysDifference > 5) {
           totalLatePayments++;
@@ -738,22 +740,22 @@ function calculateClientProfile(
 function calculateExpectedPaymentDate(
   startDate: Date,
   installmentNumber: number,
-  frequency: string
+  frequency: string,
 ): Date {
   const start = new Date(startDate);
 
   switch (frequency) {
     case "DAILY":
       return new Date(
-        start.getTime() + (installmentNumber - 1) * 24 * 60 * 60 * 1000
+        start.getTime() + (installmentNumber - 1) * 24 * 60 * 60 * 1000,
       );
     case "WEEKLY":
       return new Date(
-        start.getTime() + (installmentNumber - 1) * 7 * 24 * 60 * 60 * 1000
+        start.getTime() + (installmentNumber - 1) * 7 * 24 * 60 * 60 * 1000,
       );
     case "BIWEEKLY":
       return new Date(
-        start.getTime() + (installmentNumber - 1) * 15 * 24 * 60 * 60 * 1000
+        start.getTime() + (installmentNumber - 1) * 15 * 24 * 60 * 60 * 1000,
       );
     case "MONTHLY":
       const monthlyDate = new Date(start);
@@ -761,7 +763,7 @@ function calculateExpectedPaymentDate(
       return monthlyDate;
     default:
       return new Date(
-        start.getTime() + (installmentNumber - 1) * 30 * 24 * 60 * 60 * 1000
+        start.getTime() + (installmentNumber - 1) * 30 * 24 * 60 * 60 * 1000,
       );
   }
 }

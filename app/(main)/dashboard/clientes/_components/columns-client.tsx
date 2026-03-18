@@ -1,9 +1,21 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown } from "lucide-react";
+import {
+  ArrowUpDown,
+  CircleDollarSign,
+  MoreHorizontal,
+  Pencil,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Client, Loan, LoanStatus } from "@prisma/client";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import Link from "next/link";
 
 export const columnsClient: ColumnDef<Client & { loans: Loan[] }>[] = [
   {
@@ -78,7 +90,9 @@ export const columnsClient: ColumnDef<Client & { loans: Loan[] }>[] = [
       );
     },
     cell: ({ row }) => {
-      const hasActiveLoan = row.original.loans.some(loan => loan.status === LoanStatus.ACTIVE);
+      const hasActiveLoan = row.original.loans.some(
+        (loan) => loan.status === LoanStatus.ACTIVE,
+      );
 
       return <div>{hasActiveLoan ? <div>si</div> : <div>no</div>}</div>;
     },
@@ -100,6 +114,51 @@ export const columnsClient: ColumnDef<Client & { loans: Loan[] }>[] = [
       const loanCount = row.original.loans.length;
 
       return <div>{loanCount}</div>;
+    },
+  },
+  {
+    accessorKey: "actions",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Acciones
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-4 w-8 p-0">
+              <span className="sr-only">abrir menu</span>
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="flex flex-col">
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <Link
+                className="flex justify-center"
+                href={`/dashboard/clientes/editar/${row.original.id}`}
+              >
+                <Pencil className="w-4 h-4 mr-2" />
+                Editar
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <Link
+                className="flex justify-center"
+                href={`/dashboard/prestamos/registrar?clientId=${row.original.id}`}
+              >
+                <CircleDollarSign className="w-4 h-4 mr-2" />
+                Registrar Prestamo
+              </Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
     },
   },
 ];

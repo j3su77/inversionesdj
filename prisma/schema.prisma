@@ -24,6 +24,9 @@ model User {
 
   isActive Boolean @default(true)
 
+  managedLoans   Loan[]
+  managedClients Client[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -104,7 +107,7 @@ model Client {
   // Personal Info
   fullName          String
   identification    Int                @unique
-  maritalStatus     MaritalStatus
+  maritalStatus     MaritalStatus?     // Opcional al crear
   nationality       String
   dateOfBirth       DateTime
   placeOfBirth      String
@@ -124,7 +127,8 @@ model Client {
   status            ClientStatus       @default(ACTIVE)
   // Relationships
   loans             Loan[]            // Relación con préstamos
-
+  managedByUserId   String?
+  managedBy         User?              @relation(fields: [managedByUserId], references: [id])
 
   referenceContact ReferenceContact[]
 
@@ -135,6 +139,7 @@ model Client {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
+  @@index([managedByUserId])
 }
 
 model ReferenceContact {
@@ -209,7 +214,17 @@ model Loan {
   
   // Account Relations
   loanAccounts         LoanAccount[]    // Cuentas de donde sale el dinero del préstamo
-  
+
+  // Co-debtor (opcional, almacenado como JSON básico)
+  coDebtor             Json?
+
+  // Información del producto (opcional): nombre, proveedor, costo, fecha de pago
+  productInfo          Json?
+
+  // Usuario que gestiona el préstamo
+  managedByUserId      String?
+  managedBy            User?            @relation(fields: [managedByUserId], references: [id])
+
   // Documents and Changes
   documents            Document[]       // Documentos relacionados al préstamo
   frequencyChanges     PaymentFrequencyChange[]
@@ -222,6 +237,7 @@ model Loan {
   notes                String?          // Notas o comentarios
 
   @@index([clientId])
+  @@index([managedByUserId])
 }
 
 model PaymentFrequencyChange {

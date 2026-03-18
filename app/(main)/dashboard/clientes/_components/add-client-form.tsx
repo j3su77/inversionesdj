@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import axios from "axios";
 import { CalendarIcon, Loader2 } from "lucide-react";
+import { useDebounce } from "@/hooks/use-debounced";
 import { useRouter } from "next/navigation";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { toast } from "sonner";
@@ -27,18 +28,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Client, MaritalStatus } from "@prisma/client";
 import { Banner } from "@/components/banner";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { getManagers, type ManagerUser } from "@/actions/users";
+import { checkClientIdentification } from "@/actions/clients";
 
 interface AddClientFormProps {
   client?: Client | null;
@@ -57,30 +52,24 @@ const formSchema = z.object({
   nationality: z.string().optional(),
   dateOfBirth: z.date(),
   placeOfBirth: z.string().optional(),
-  maritalStatus: z.nativeEnum(MaritalStatus),
-  occupation: z.string().min(1, {
-    message: "Ocupación es requerida",
-  }),
+  maritalStatus: z.nativeEnum(MaritalStatus).optional().nullable(),
+  occupation: z.string().optional().nullable(),
   companyName: z.string().optional(),
   workplace: z.string().optional(),
   monthlyIncome: z.coerce.number().optional(),
   companyTenure: z.coerce.number().optional(),
   currentPosition: z.string().optional(),
   isDisallowed: z.boolean(),
+  managedByUserId: z.string().min(1, "Debe seleccionar el usuario asignado"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
-const maritalStatusOptions = [
-  { label: "Soltero", value: "SINGLE" },
-  { label: "Casado", value: "MARRIED" },
-  { label: "Separado", value: "DIVORCED" },
-  { label: "Unión libre", value: "DOMESTIC_PARTNERSHIP" },
-];
-
 export const AddClientForm = ({ client }: AddClientFormProps) => {
   const router = useRouter();
   const isEdit = useMemo(() => client, [client]);
+  const [managers, setManagers] = useState<ManagerUser[]>([]);
+  const [isCheckingId, setIsCheckingId] = useState(false);
 
   if (isEdit && !client) {
     router.replace("/");
@@ -96,20 +85,62 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
       phone: client?.phone ?? "",
       cellphone: client?.cellphone ?? "",
       nationality: client?.nationality ?? "",
-      maritalStatus: client?.maritalStatus ?? MaritalStatus.SINGLE,
+      maritalStatus: client?.maritalStatus ?? undefined,
       dateOfBirth: client?.dateOfBirth ?? new Date(),
       placeOfBirth: client?.placeOfBirth ?? "",
-      occupation: client?.occupation ?? "",
+      occupation: client?.occupation ?? undefined,
       isDisallowed: client?.isDisallowed ?? false,
       companyName: client?.companyName ?? "",
       workplace: client?.workplace ?? "",
       monthlyIncome: client?.monthlyIncome ?? undefined,
       companyTenure: client?.companyTenure ?? undefined,
       currentPosition: client?.currentPosition ?? "",
+      managedByUserId: (client as Client & { managedByUserId?: string | null })?.managedByUserId ?? "",
     },
   });
   const { isSubmitting, isValid } = form.formState;
-  const { setError } = form;
+  const { setError, clearErrors } = form;
+
+  const identificationValue = form.watch("identification");
+  const debouncedIdentification = useDebounce(
+    identificationValue !== undefined && identificationValue !== null ? String(identificationValue) : "",
+    500
+  );
+
+  useEffect(() => {
+    getManagers().then(setManagers);
+  }, []);
+
+  useEffect(() => {
+    const num = parseInt(debouncedIdentification, 10);
+    if (isNaN(num) || num < 1) {
+      clearErrors("identification");
+      setIsCheckingId(false);
+      return;
+    }
+    if (isEdit && client && Number(client.identification) === num) {
+      clearErrors("identification");
+      setIsCheckingId(false);
+      return;
+    }
+    let cancelled = false;
+    setIsCheckingId(true);
+    checkClientIdentification(num, isEdit ? client?.id : null).then((result) => {
+      if (cancelled) return;
+      setIsCheckingId(false);
+      if (result.available) {
+        clearErrors("identification");
+      } else {
+        setError("identification", {
+          type: "manual",
+          message: result.message ?? "Número de documento ya registrado",
+        });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedIdentification, isEdit, client, setError, clearErrors]);
 
   const onSubmit: SubmitHandler<FormValues> = async (values) => {
     try {
@@ -162,6 +193,41 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
         <CardContent className="p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              <FormField
+                control={form.control}
+                name="managedByUserId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Usuario asignado</FormLabel>
+                    <p className="text-sm text-muted-foreground">
+                      Seleccione el usuario responsable de este cliente (obligatorio).
+                    </p>
+                    {managers.length === 0 ? (
+                      <p className="text-sm text-amber-600">
+                        No hay usuarios activos.
+                      </p>
+                    ) : (
+                      <FormControl>
+                        <div className="flex flex-wrap gap-2">
+                          {managers.map((m) => (
+                            <Button
+                              key={m.id}
+                              type="button"
+                              variant={field.value === m.id ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => field.onChange(m.id)}
+                            >
+                              {m.username}
+                            </Button>
+                          ))}
+                        </div>
+                      </FormControl>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               {/* Sección: Información Personal */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -190,18 +256,27 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
                       <FormItem>
                         <FormLabel>Número de documento</FormLabel>
                         <FormControl>
-                          <Input
-                            type="number"
-                            disabled={isSubmitting}
-                            {...field}
-                            value={field.value ?? ""}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              field.onChange(
-                                value === "" ? undefined : Number(value)
-                              );
-                            }}
-                          />
+                          <div className="relative flex items-center gap-2">
+                            <Input
+                              type="number"
+                              disabled={isSubmitting}
+                              {...field}
+                              value={field.value ?? ""}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                field.onChange(
+                                  value === "" ? undefined : Number(value)
+                                );
+                              }}
+                              className={form.formState.errors.identification ? "border-destructive" : ""}
+                            />
+                            {isCheckingId && (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                Verificando...
+                              </span>
+                            )}
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -216,36 +291,6 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
                         <FormControl>
                           <Input disabled={isSubmitting} {...field} />
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="maritalStatus"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Estado civil</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleccione el estado civil" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {maritalStatusOptions.map((option) => (
-                              <SelectItem
-                                key={option.value}
-                                value={option.value}
-                              >
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -362,19 +407,6 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="occupation"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Ocupación</FormLabel>
-                        <FormControl>
-                          <Input disabled={isSubmitting} {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
                     name="companyName"
                     render={({ field }) => (
                       <FormItem>
@@ -404,7 +436,7 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
                     name="companyTenure"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Antigüedad (años)</FormLabel>
+                        <FormLabel>Antigüedad (meses)</FormLabel>
                         <FormControl>
                           <Input
                             type="number"

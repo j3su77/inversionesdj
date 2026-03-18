@@ -50,7 +50,7 @@ export const HandleInfoLoan = ({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <LoanForm client={loan.client} loan={loan} disabled={true} />
+            <LoanForm client={loan.client} loan={loan} disabled={false} />
           </CardContent>
         </Card>
       ) : (

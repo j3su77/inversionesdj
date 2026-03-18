@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { DataTable } from "@/components/datatable";
@@ -7,26 +7,49 @@ import { getClientsByStatus } from "@/actions/clients";
 import { Client, Loan } from "@prisma/client";
 
 const clientsByStatus = async (
-  status: "active" | "inactive" | "all" | "blocked"
+  status: "active" | "inactive" | "all" | "blocked",
+  managedByUserId?: string | null
 ) => {
-  const clients = await getClientsByStatus(status);
-
+  const clients = await getClientsByStatus(status, managedByUserId);
   return clients;
 };
 
+function matchClientSearch(client: Client & { loans: Loan[] }, query: string): boolean {
+  if (!query.trim()) return true;
+  const q = query.trim().toLowerCase();
+  const fields = [
+    client.fullName,
+    String(client.identification ?? ""),
+    client.phone ?? "",
+    client.cellphone ?? "",
+    client.address ?? "",
+    client.occupation ?? "",
+    client.companyName ?? "",
+    client.placeOfBirth ?? "",
+    client.nationality ?? "",
+    client.currentPosition ?? "",
+    client.workplace ?? "",
+  ];
+  return fields.some((v) => String(v).toLowerCase().includes(q));
+}
+
 export const ListClientsByStatus = ({
   status,
+  managedByUserId,
+  searchQuery = "",
 }: {
   status: "active" | "inactive" | "all" | "blocked";
+  managedByUserId?: string | null;
+  searchQuery?: string;
 }) => {
   const [data, setData] = useState<(Client & { loans: Loan[] })[]>([]);
   const [isLoading, setIsloading] = useState(true);
 
   useEffect(() => {
     setIsloading(true);
-    const data = async () => {
+    const load = async () => {
       try {
-        const clients = await clientsByStatus(status);
+        const clients = await clientsByStatus(status, managedByUserId);
         setData(clients as (Client & { loans: Loan[] })[]);
       } catch (error) {
         console.log({ error });
@@ -34,8 +57,12 @@ export const ListClientsByStatus = ({
         setIsloading(false);
       }
     };
-    data();
-  }, [status]);
+    load();
+  }, [status, managedByUserId]);
+
+  const filteredData = useMemo(() => {
+    return data.filter((client) => matchClientSearch(client, searchQuery));
+  }, [data, searchQuery]);
 
   return (
     <div>
@@ -46,8 +73,9 @@ export const ListClientsByStatus = ({
       ) : (
         <DataTable
           columns={columnsClient}
-          data={data}
-          editHref={{ btnText: "Ver", href: "/dashboard/clientes/editar" }}
+          data={filteredData}
+          // editHref={{ btnText: "Ver", href: "/dashboard/clientes/editar", }}
+          
         />
       )}
     </div>
