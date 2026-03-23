@@ -1,7 +1,11 @@
 "use server";
 import { db } from "@/lib/db";
-import {  Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { startOfDay, endOfDay } from "date-fns";
+import {
+  getCommercialDayOfMonth,
+  isLoanDueToday,
+} from "@/lib/loan-payment-days";
 
 // export const getPaymentFrequencyFromAuditLog = async (paymentId: string) => {
 //   const auditLog = await db.auditLog.findFirst({
@@ -62,17 +66,55 @@ export const getLoansByStatus = async (
       case "cancelled":
         whereClause.status = "CANCELLED";
         break;
-      case "dueToday":
+      case "dueToday": {
+        /**
+         * Vence hoy si:
+         * - frecuencia diaria, o
+         * - tiene días de ciclo 30 configurados y el día comercial de hoy coincide, o
+         * - no tiene días configurados y nextPaymentDate sigue siendo hoy (préstamos legacy).
+         * Y no tiene ya un pago registrado con fecha de hoy (cuota del día cubierta).
+         */
+        const commercialDay = getCommercialDayOfMonth(today);
+        const dayStart = startOfDay(today);
+        const dayEnd = endOfDay(today);
         whereClause.AND = [
           { status: "ACTIVE" },
           {
-            nextPaymentDate: {
-              gte: startOfDay(today),
-              lte: endOfDay(today),
+            NOT: {
+              payments: {
+                some: {
+                  paymentDate: {
+                    gte: dayStart,
+                    lte: dayEnd,
+                  },
+                },
+              },
             },
+          },
+          {
+            OR: [
+              { paymentFrequency: "DAILY" },
+              {
+                paymentDays: {
+                  some: { dayOfCycle: commercialDay },
+                },
+              },
+              {
+                AND: [
+                  { paymentDays: { none: {} } },
+                  {
+                    nextPaymentDate: {
+                      gte: dayStart,
+                      lte: dayEnd,
+                    },
+                  },
+                ],
+              },
+            ],
           },
         ];
         break;
+      }
       case "overdue":
         whereClause.AND = [
           { status: "ACTIVE" },
@@ -167,8 +209,9 @@ export const getLoanById = async (loanId: string) => {
 
 export const getLoanStats = async () => {
   try {
-    const today = new Date();
-    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+    const now = new Date();
+    const startOfToday = startOfDay(now);
+    const endOfToday = endOfDay(now);
 
     // Obtener todos los préstamos activos
     const activeLoans = await db.loan.findMany({
@@ -180,6 +223,18 @@ export const getLoanStats = async () => {
         nextPaymentDate: true,
         balance: true,
         totalAmount: true,
+        paymentFrequency: true,
+        paymentDays: { select: { dayOfCycle: true } },
+        payments: {
+          where: {
+            paymentDate: {
+              gte: startOfToday,
+              lte: endOfToday,
+            },
+          },
+          select: { id: true },
+          take: 1,
+        },
         client: {
           select: {
             fullName: true,
@@ -201,12 +256,18 @@ export const getLoanStats = async () => {
       loan.nextPaymentDate && loan.nextPaymentDate >= startOfToday
     );
 
-    // Préstamos que vencen hoy
-    const dueTodayLoans = activeLoans.filter(loan => {
-      if (!loan.nextPaymentDate) return false;
-      const paymentDate = new Date(loan.nextPaymentDate);
-      return paymentDate.toDateString() === today.toDateString();
-    });
+    // Préstamos que vencen hoy (ciclo 30 + diario + fallback nextPaymentDate), sin pago hoy
+    const dueTodayLoans = activeLoans.filter((loan) =>
+      isLoanDueToday(
+        {
+          paymentFrequency: loan.paymentFrequency,
+          nextPaymentDate: loan.nextPaymentDate,
+          paymentDays: loan.paymentDays,
+          hasPaymentToday: loan.payments.length > 0,
+        },
+        now
+      )
+    );
 
     // Calcular montos totales
     const totalActiveAmount = activeLoans.reduce((sum, loan) => sum + loan.totalAmount, 0);

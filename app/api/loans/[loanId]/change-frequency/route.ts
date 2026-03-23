@@ -89,6 +89,9 @@ export async function POST(
         },
       })
 
+      // 3. Los días de pago del ciclo de 30 días dependen de la frecuencia: limpiar para reconfigurar
+      await tx.loanPaymentDay.deleteMany({ where: { loanId } })
+
       return { frequencyChange, updatedLoan }
     })
 

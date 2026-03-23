@@ -18,12 +18,15 @@ export async function POST(
     console.log({ body });
     const {
       paymentDate,
+      nextPaymentDate: nextPaymentDateFromClient,
       notes,
       capitalAmount,
       interestAmount,
       // accounts,
     }: {
       paymentDate: string;
+      /** Fecha elegida en el formulario (próximo vencimiento); si falta o es inválida, se calcula en servidor. */
+      nextPaymentDate?: string;
       notes?: string;
       capitalAmount: number;
       interestAmount: number;
@@ -284,36 +287,44 @@ export async function POST(
     // Calcular el número de cuota - Ahora siempre incrementa
     const installmentNumber = (lastPaymentFull?.installmentNumber || lastPayment?.installmentNumber || 0) + 1;
 
-    // Calcular la próxima fecha de pago basada en la fecha programada original
-    // Si el pago se retrasa, la próxima fecha debe calcularse desde la fecha programada, no desde la fecha de pago real
+    // Próxima fecha de pago: priorizar la enviada desde el formulario (ciclo 30 / calendario del usuario)
     let calculatedNextPaymentDate: Date | null = null;
     if (adjustedNewBalance > 0) {
-      // Usar la fecha programada original (nextPaymentDate del préstamo) si existe
-      // Si no existe, usar la fecha de pago proporcionada
-      const baseDate = loan.nextPaymentDate 
-        ? new Date(loan.nextPaymentDate) 
-        : new Date(paymentDate);
-      
-      // Calcular días según la frecuencia
-      const daysToAdd = (() => {
-        switch (loan.paymentFrequency) {
-          case "DAILY":
-            return 1;
-          case "WEEKLY":
-            return 7;
-          case "BIWEEKLY":
-            return 15;
-          case "MONTHLY":
-            return 30;
-          case "QUARTERLY":
-            return 90;
-          default:
-            return 30;
+      if (nextPaymentDateFromClient) {
+        const clientNext = normalizeDate(nextPaymentDateFromClient);
+        if (!Number.isNaN(clientNext.getTime()) && clientNext > normalizedPaymentDate) {
+          calculatedNextPaymentDate = clientNext;
         }
-      })();
-      
-      calculatedNextPaymentDate = new Date(baseDate);
-      calculatedNextPaymentDate.setDate(calculatedNextPaymentDate.getDate() + daysToAdd);
+      }
+
+      if (!calculatedNextPaymentDate) {
+        // Fallback: fecha programada original del préstamo + intervalo según frecuencia
+        const baseDate = loan.nextPaymentDate
+          ? new Date(loan.nextPaymentDate)
+          : new Date(paymentDate);
+
+        const daysToAdd = (() => {
+          switch (loan.paymentFrequency) {
+            case "DAILY":
+              return 1;
+            case "WEEKLY":
+              return 7;
+            case "BIWEEKLY":
+              return 15;
+            case "MONTHLY":
+              return 30;
+            case "QUARTERLY":
+              return 90;
+            default:
+              return 30;
+          }
+        })();
+
+        calculatedNextPaymentDate = new Date(baseDate);
+        calculatedNextPaymentDate.setDate(
+          calculatedNextPaymentDate.getDate() + daysToAdd
+        );
+      }
     }
 
     // Registrar el pago y actualizar el préstamo en una transacción

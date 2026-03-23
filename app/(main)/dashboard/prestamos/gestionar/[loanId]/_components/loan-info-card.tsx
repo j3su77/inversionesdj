@@ -1,4 +1,10 @@
-import { Account, Loan, LoanAccount, LoanStatus } from "@prisma/client";
+import {
+  Account,
+  Loan,
+  LoanAccount,
+  LoanPaymentDay,
+  LoanStatus,
+} from "@prisma/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, getPaymentFrequencyLabel } from "@/lib/utils";
 import { format } from "date-fns";
@@ -10,6 +16,7 @@ import {
   Clock,
   BarChart2,
   Package,
+  ListOrdered,
   // CreditCard,
   Code,
 } from "lucide-react";
@@ -19,6 +26,8 @@ interface LoanInfoCardProps {
   loan: Loan & {
     loanAccounts: (LoanAccount & { account: Account | null })[] | null;
   };
+  /** Días del ciclo de 30 días (si aplica a la frecuencia) */
+  paymentDays?: LoanPaymentDay[];
 }
 
 interface InfoItemProps {
@@ -53,7 +62,23 @@ type LoanWithProductInfo = Loan & {
   productInfo?: { productName?: string; supplierName?: string; cost?: number; paymentDate?: string } | null;
 };
 
-export function LoanInfoCard({ loan }: LoanInfoCardProps) {
+function formatPaymentDaysSummary(
+  loan: Loan,
+  paymentDays: LoanPaymentDay[] | undefined
+): string {
+  if (loan.paymentFrequency === "DAILY") {
+    return "No aplica (pago diario)";
+  }
+  if (!paymentDays || paymentDays.length === 0) {
+    return "Sin configurar";
+  }
+  return [...paymentDays]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((d) => d.dayOfCycle)
+    .join(", ");
+}
+
+export function LoanInfoCard({ loan, paymentDays }: LoanInfoCardProps) {
   const productInfo = (loan as LoanWithProductInfo).productInfo;
   const hasProductInfo =
     productInfo != null &&
@@ -99,6 +124,11 @@ export function LoanInfoCard({ loan }: LoanInfoCardProps) {
             icon={<Clock className="h-4 w-4" />}
             label="Frecuencia de pago"
             value={getPaymentFrequencyLabel(loan.paymentFrequency)}
+          />
+          <InfoItem
+            icon={<ListOrdered className="h-4 w-4" />}
+            label="Días de pago (ciclo 30 días)"
+            value={formatPaymentDaysSummary(loan, paymentDays)}
           />
           <InfoItem
             icon={<Calendar className="h-4 w-4" />}

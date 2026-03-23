@@ -191,27 +191,36 @@ export const columnsLoan: ColumnDef<
       );
     },
   },
-  // {
-  //   accessorKey: "F. proxima cuota",
-  //   accessorFn: (value) => value.remainingInstallments,
-  //   header: ({ column }) => {
-  //     return (
-  //       <Button
-  //         variant="ghost"
-  //         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-  //       >
-  //         F. proxima cuota
-  //         <ArrowUpDown className="ml-2 h-4 w-4" />
-  //       </Button>
-  //     );
-  //   },
-  //   cell: ({ row }) => {
-  //     const remainingInstallments = row.original.remainingInstallments;
-  //     return (
-  //       <div className="text-center max-w-[80%]">{remainingInstallments}</div>
-  //     );
-  //   },
-  // },
+  {
+    accessorKey: "Próximo pago",
+    accessorFn: (value) =>
+      value.nextPaymentDate
+        ? new Date(value.nextPaymentDate).getTime()
+        : null,
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Próximo pago
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      const next = row.original.nextPaymentDate;
+      if (!next) {
+        return <span className="text-muted-foreground">—</span>;
+      }
+      const d = next instanceof Date ? next : new Date(next);
+      return (
+        <div className="whitespace-nowrap">
+          {formatDate(d, "P")}
+        </div>
+      );
+    },
+  },
   {
     accessorKey: "Saldo",
     accessorFn: (value) => formatCurrency({ value: value.balance }),

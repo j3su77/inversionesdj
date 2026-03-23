@@ -230,6 +230,9 @@ model Loan {
   frequencyChanges     PaymentFrequencyChange[]
   auditLogs            LoanAudit[]      // Historial de auditoría
 
+  /// Días de pago dentro del ciclo comercial de 30 días (1–30). Vacío si es diario.
+  paymentDays          LoanPaymentDay[]
+
   // Audit
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
@@ -239,6 +242,24 @@ model Loan {
 
   @@index([clientId])
   @@index([managedByUserId])
+}
+
+/// Días pactados de pago por préstamo (ciclo de 30 días por mes comercial).
+model LoanPaymentDay {
+  id         String   @id @default(uuid())
+  loanId     String
+  loan       Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  /// Día dentro del mes de 30 días (1 = día 1, …, 30 = día 30).
+  dayOfCycle Int
+  /// Orden del día en la secuencia pactada (0, 1, 2…).
+  sortOrder  Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([loanId, dayOfCycle])
+  @@unique([loanId, sortOrder])
+  @@index([loanId])
 }
 
 enum LoanAuditAction {

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { format } from "date-fns";
+import { format, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -30,7 +30,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn, formatCurrency } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loan, InterestType, Payment } from "@prisma/client";
+import { Loan, InterestType, LoanPaymentDay, Payment } from "@prisma/client";
+import { getNextDateFromPaymentCycle } from "@/lib/loan-payment-days";
 import { FormattedInput } from "@/components/ui/formatted-input";
 import {
   // PaymentAccountSelector,
@@ -40,7 +41,10 @@ import {
 import { calculateNextPaymentDate } from "@/actions/loans";
 
 interface PaymentFormProps {
-  loan: Loan & { payments?: Payment[] };
+  loan: Loan & {
+    payments?: Payment[];
+    paymentDays?: LoanPaymentDay[];
+  };
   onSuccess?: () => void;
 }
 
@@ -300,7 +304,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
   const { watch } = form;
   const capitalAmount = watch("capitalAmount");
   const interestAmount = watch("interestAmount");
-  // const paymentDate = watch("paymentDate");
+  const paymentDateWatched = watch("paymentDate");
 
   console.log("=== FORM VALUES DEBUG ===");
   console.log("capitalAmount:", capitalAmount, "type:", typeof capitalAmount);
@@ -391,20 +395,45 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
     });
   }, [calculatedPayment]);
 
+  /** Días del ciclo 30 en orden pactado (tabla LoanPaymentDay). */
+  const orderedCycleDays =
+    loan.paymentDays?.slice().sort((a, b) => a.sortOrder - b.sortOrder) ?? [];
+  const cycleDayNumbers = orderedCycleDays.map((p) => p.dayOfCycle);
+
   // Función para calcular automáticamente la próxima fecha de pago
   const calculateAndSetNextPaymentDate = async (paymentDate: Date) => {
     console.log("Calculating next payment date for:", paymentDate);
+
+    const fromCycle = getNextDateFromPaymentCycle(
+      paymentDate,
+      cycleDayNumbers,
+      loan.paymentFrequency
+    );
+    if (fromCycle) {
+      console.log("Next date from payment cycle (LoanPaymentDay):", fromCycle);
+      form.setValue("nextPaymentDate", fromCycle);
+      return;
+    }
+
     try {
       const result = await calculateNextPaymentDate(loan.id, paymentDate);
       console.log("Calculate result:", result);
       if (result.success && result.nextPaymentDate) {
         console.log("Setting next payment date:", result.nextPaymentDate);
         form.setValue("nextPaymentDate", result.nextPaymentDate);
-      } else {
-        console.log("Failed to calculate or no next payment date");
+        return;
       }
     } catch (error) {
       console.error("Error calculating next payment date:", error);
+    }
+
+    // Último recurso: fecha ya guardada en el préstamo si sigue siendo válida
+    if (loan.nextPaymentDate) {
+      const npd = normalizeDate(loan.nextPaymentDate);
+      const pd = normalizeDate(paymentDate);
+      if (npd > pd) {
+        form.setValue("nextPaymentDate", npd);
+      }
     }
   };
 
@@ -491,8 +520,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
         method: "POST",
         body: JSON.stringify({
           paymentDate: values.paymentDate,
-          // nextPaymentDate ya no se envía, el backend lo calcula automáticamente
-          // basándose en la fecha programada original del préstamo
+          nextPaymentDate: values.nextPaymentDate,
           amount: Number(values.capitalAmount) + Number(values.interestAmount),
           notes: values.notes,
           capitalAmount: Number(values.capitalAmount),
@@ -773,7 +801,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
               }}
             /> */}
 
-            <Card className="col-span-full bg-orange-200 hidden">
+            <Card className="col-span-full bg-orange-200 border border-orange-300">
               <CardHeader>
                 <CardTitle>Fecha del Próximo Pago</CardTitle>
               </CardHeader>
@@ -807,14 +835,23 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
                             mode="single"
                             selected={field.value}
                             onSelect={field.onChange}
-                            disabled={(date) => date <= new Date()}
+                            disabled={(date) => {
+                              const d = startOfDay(date);
+                              if (paymentDateWatched) {
+                                return d <= startOfDay(paymentDateWatched);
+                              }
+                              return d < startOfDay(new Date());
+                            }}
                             defaultMonth={watch("nextPaymentDate")}
                           />
                         </PopoverContent>
                       </Popover>
                       <FormDescription>
-                        Se calcula automáticamente basado en la frecuencia de
-                        pago del préstamo
+                        {orderedCycleDays.length > 0
+                          ? "Se sugiere el próximo día según los días de pago configurados del préstamo (ciclo de 30 días). Puede cambiar la fecha si lo necesita."
+                          : loan.paymentFrequency === "DAILY"
+                            ? "Próximo pago: día siguiente al de este pago. Puede ajustar la fecha si lo necesita."
+                            : "Se calcula según la frecuencia del préstamo; puede cambiar la fecha si lo necesita."}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -833,7 +870,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
                   Registrando...
                 </>
               ) : (
-                "Registrar Pago"
+                "Registrar Pagos"
               )}
             </Button>
           </form>

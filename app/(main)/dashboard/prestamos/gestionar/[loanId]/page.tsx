@@ -31,6 +31,9 @@ async function GestionarPrestamo({ params }: { params: Promise<{ loanId: string 
           createdAt: "desc",
         },
       },
+      paymentDays: {
+        orderBy: { sortOrder: "asc" },
+      },
       loanAccounts: {
         include: {
           account: true,

@@ -29,6 +29,9 @@ export default async function RegisterPaymentPage({ params }: RegisterPaymentPag
     include: {
       client: true,
       payments: true,
+      paymentDays: {
+        orderBy: { sortOrder: "asc" },
+      },
     },
   });
 
