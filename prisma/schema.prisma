@@ -269,6 +269,7 @@ enum LoanAuditAction {
   PAYMENT      // Pago registrado
   CANCELLED    // Préstamo cancelado
   STATUS_CHANGED // Cambio de estado
+  NEXT_PAYMENT_DATE_CHANGED // Fecha del próximo pago ajustada manualmente
 }
 
 model LoanAudit {

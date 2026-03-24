@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { ListClientsByStatus } from "./list-client-by-status";
 import { getManagers, type ManagerUser } from "@/actions/users";
+import { ClientStatsCards } from "../../_components/client-stats-cards";
 
 export const TabsClientList = () => {
   const [managers, setManagers] = useState<ManagerUser[]>([]);
@@ -25,7 +26,9 @@ export const TabsClientList = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-4">
+      <ClientStatsCards managedByUserId={managedByUserId} />
+
+      <div className="flex flex-wrap items-center gap-4 mt-6">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input

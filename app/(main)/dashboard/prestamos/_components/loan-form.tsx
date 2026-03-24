@@ -47,6 +47,7 @@ import {} from // AccountSelector,
 "@/components/ui/account-selector";
 // import { getAccounts } from "@/actions/accounts";
 import { ChangeFrequencyForm } from "./change-frequency-form";
+import { ChangeNextPaymentDateForm } from "./change-next-payment-date-form";
 import { getManagers, type ManagerUser } from "@/actions/users";
 import { ProductInfoModal } from "./product-info-modal";
 import { Package, Pencil } from "lucide-react";
@@ -196,6 +197,16 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
     },
     mode: "onChange",
   });
+
+  /**
+   * Si el préstamo se actualiza en servidor (p. ej. cambio de frecuencia) pero el form
+   * sigue con defaultValues viejos, el siguiente PATCH sobrescribiría `paymentFrequency`.
+   * Sincronizamos cuando cambia `updatedAt` o la frecuencia en el modelo.
+   */
+  useEffect(() => {
+    if (!loan?.id) return;
+    form.setValue("paymentFrequency", loan.paymentFrequency);
+  }, [loan?.id, loan?.updatedAt, loan?.paymentFrequency, form]);
 
   const { isSubmitting, isValid } = form.formState;
   // const totalAmount = form.watch("totalAmount");
@@ -398,7 +409,10 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
             <FormField
               control={form.control}
               name="paymentFrequency"
-              render={({ field }) => (
+              render={({ field }) => {
+                const displayedFrequency =
+                  field.value ?? loan?.paymentFrequency ?? "MONTHLY";
+                return (
                 <FormItem>
                   <FormLabel>Frecuencia de Pago</FormLabel>
                   {isEdit && loan ? (
@@ -408,7 +422,7 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
                           <p className="font-medium">
                             {
                               paymentFrequencyOptions.find(
-                                (opt) => opt.value === loan.paymentFrequency,
+                                (opt) => opt.value === displayedFrequency,
                               )?.label
                             }
                           </p>
@@ -418,6 +432,12 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
                         </div>
                         <ChangeFrequencyForm
                           loan={loan}
+                          onFrequencyApplied={(newFrequency) => {
+                            form.setValue("paymentFrequency", newFrequency, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            });
+                          }}
                           onSuccess={() => {
                             window.location.reload();
                           }}
@@ -450,8 +470,39 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
                   )}
                   <FormMessage />
                 </FormItem>
-              )}
+                );
+              }}
             />
+
+            {isEdit && loan?.status === "ACTIVE" && (
+              <div className="md:col-span-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg bg-muted/50">
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Próximo pago programado
+                    </p>
+                    <p className="font-medium">
+                      {loan.nextPaymentDate
+                        ? format(new Date(loan.nextPaymentDate), "PPP", {
+                            locale: es,
+                          })
+                        : "Sin fecha definida"}
+                    </p>
+                  </div>
+                  <ChangeNextPaymentDateForm
+                    loan={loan}
+                    onSuccess={() => {
+                      window.location.reload();
+                    }}
+                    trigger={
+                      <Button variant="outline" size="sm" type="button">
+                        Cambiar fecha
+                      </Button>
+                    }
+                  />
+                </div>
+              </div>
+            )}
 
             <FormField
               control={form.control}

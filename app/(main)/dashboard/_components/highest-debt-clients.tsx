@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, Calendar, DollarSign, Users } from "lucide-react";
+import { Eye, Calendar, DollarSign } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -104,7 +104,9 @@ export function HighestDebtClients() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">No hay clientes con deuda pendiente</p>
+          <p className="text-muted-foreground">
+            No hay clientes con deuda pendiente
+          </p>
         </CardContent>
       </Card>
     );
@@ -148,20 +150,22 @@ export function HighestDebtClients() {
                   </TableCell>
                   <TableCell className="text-right font-bold">
                     <span className="text-red-600">
-                      {formatCurrency({ value: client.totalDebt, symbol: true })}
+                      {formatCurrency({
+                        value: client.totalDebt,
+                        symbol: true,
+                      })}
                     </span>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Badge variant="outline" className="flex items-center gap-1 w-fit mx-auto">
-                      <Users className="h-3 w-3" />
-                      {client.totalLoans}
-                    </Badge>
+                    {client.totalLoans}
                   </TableCell>
                   <TableCell>
                     {client.nextPaymentDate ? (
                       <div className="flex items-center gap-1 text-sm">
                         <Calendar className="h-3 w-3" />
-                        {format(client.nextPaymentDate, "dd/MM/yyyy", { locale: es })}
+                        {format(client.nextPaymentDate, "dd/MM/yyyy", {
+                          locale: es,
+                        })}
                       </div>
                     ) : (
                       <span className="text-muted-foreground">Sin fecha</span>

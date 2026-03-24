@@ -3,10 +3,40 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown, Eye } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { differenceInCalendarDays, startOfDay } from "date-fns";
 
 import { Loan, LoanStatus, PaymentFrequency } from "@prisma/client";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
+
+/** Fila de la tabla de préstamos (lista en dashboard). */
+export type LoanTableRow = Loan & {
+  client: {
+    fullName: string;
+    identification: number;
+    phone: string | null;
+    cellphone: string | null;
+  } | null;
+  payments: {
+    interestAmount: number;
+  }[];
+  _count: {
+    payments: number;
+  } | null;
+};
+
+/**
+ * Días calendario desde `nextPaymentDate` hasta hoy (para mora: cuánto lleva vencido).
+ * Si no hay fecha, devuelve 0.
+ */
+export function getDaysOverdueSinceNextPayment(
+  nextPaymentDate: Date | string | null | undefined
+): number {
+  if (!nextPaymentDate) return 0;
+  const due = startOfDay(new Date(nextPaymentDate));
+  const today = startOfDay(new Date());
+  return Math.max(0, differenceInCalendarDays(today, due));
+}
 
 const translatePaymentFrequency = (frequency: PaymentFrequency) => {
   switch (frequency) {
@@ -40,22 +70,7 @@ const getLoanStatusText = (status: LoanStatus) => {
   }
 };
 
-export const columnsLoan: ColumnDef<
-  Loan & {
-    client: {
-      fullName: string;
-      identification: number;
-      phone: string | null;
-      cellphone: string | null;
-    } | null;
-    payments: {
-      interestAmount: number;
-    }[];
-    _count: {
-      payments: number;
-    } | null;
-  }
->[] = [
+const loanColumnsBase: ColumnDef<LoanTableRow>[] = [
   {
     accessorKey: "Numero prestamo",
     accessorFn: (value) => value.loanNumber,
@@ -339,3 +354,47 @@ export const columnsLoan: ColumnDef<
     },
   },
 ];
+
+/** Columna extra solo para el tab "En Mora": días vencidos desde el próximo pago programado. */
+function createDaysOverdueColumn(): ColumnDef<LoanTableRow> {
+  return {
+    id: "daysWithoutPayment",
+    accessorKey: "Días sin pagar",
+    accessorFn: (row) => getDaysOverdueSinceNextPayment(row.nextPaymentDate),
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Días sin pagar
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      const days = getDaysOverdueSinceNextPayment(row.original.nextPaymentDate);
+      return (
+        <div className="text-center font-semibold text-red-600 dark:text-red-500 tabular-nums">
+          {days} {days === 1 ? "día" : "días"}
+        </div>
+      );
+    },
+  };
+}
+
+const saldoColumnIndex = loanColumnsBase.findIndex(
+  (col) => "accessorKey" in col && col.accessorKey === "Saldo"
+);
+
+/** Mismas columnas que `columnsLoan` más "Días sin pagar" (uso en tab En Mora). */
+export const columnsLoanOverdue: ColumnDef<LoanTableRow>[] =
+  saldoColumnIndex >= 0
+    ? [
+        ...loanColumnsBase.slice(0, saldoColumnIndex),
+        createDaysOverdueColumn(),
+        ...loanColumnsBase.slice(saldoColumnIndex),
+      ]
+    : [...loanColumnsBase, createDaysOverdueColumn()];
+
+export const columnsLoan = loanColumnsBase;

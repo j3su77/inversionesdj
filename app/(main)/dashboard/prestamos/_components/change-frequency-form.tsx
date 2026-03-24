@@ -49,6 +49,8 @@ import { Loan, PaymentFrequency } from "@prisma/client"
 interface ChangeFrequencyFormProps {
   loan: Loan
   onSuccess?: () => void
+  /** Se llama con la nueva frecuencia para sincronizar el formulario padre (evita PATCH con valor viejo). */
+  onFrequencyApplied?: (newFrequency: PaymentFrequency) => void
   trigger?: React.ReactNode
 }
 
@@ -75,7 +77,7 @@ const paymentFrequencyOptions = [
   { label: "Trimestral", value: "QUARTERLY" },
 ]
 
-export function ChangeFrequencyForm({ loan, onSuccess, trigger }: ChangeFrequencyFormProps) {
+export function ChangeFrequencyForm({ loan, onSuccess, onFrequencyApplied, trigger }: ChangeFrequencyFormProps) {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
 
@@ -189,11 +191,13 @@ export function ChangeFrequencyForm({ loan, onSuccess, trigger }: ChangeFrequenc
         const errorData = await response.json().catch(() => null)
         throw new Error(errorData?.message || 'Error al cambiar la frecuencia')
       }
-      
+
+      onFrequencyApplied?.(values.newFrequency)
+
       toast.success("Frecuencia de pago actualizada exitosamente", {
         description: `Nueva frecuencia: ${getPaymentFrequencyLabel(values.newFrequency)}`,
       })
-      
+
       setIsOpen(false)
       form.reset()
       router.refresh()

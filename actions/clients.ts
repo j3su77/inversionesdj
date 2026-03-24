@@ -80,10 +80,11 @@ export const checkClientIdentification = async (
 
 export type ClientStatusFilter = "active" | "inactive" | "blocked" | "all";
 
-export const getClientsByStatus = async (
+/** Misma lógica que las pestañas de clientes (activo / inactivo+1 año / bloqueado). */
+function buildClientWhereForStatus(
     status: ClientStatusFilter,
     managedByUserId?: string | null
-): Promise<Client[]> => {
+): Prisma.ClientWhereInput {
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
@@ -91,14 +92,12 @@ export const getClientsByStatus = async (
         deletedAt: null,
     };
 
-    // Configurar los filtros según el estado
     switch (status) {
         case "active":
             baseWhere.AND = [
                 { isDisallowed: false },
                 {
                     OR: [
-                        // Clientes con préstamos activos o pendientes
                         {
                             loans: {
                                 some: {
@@ -106,7 +105,6 @@ export const getClientsByStatus = async (
                                 }
                             }
                         },
-                        // Clientes con préstamos creados en los últimos 365 días
                         {
                             loans: {
                                 some: {
@@ -114,7 +112,6 @@ export const getClientsByStatus = async (
                                 }
                             }
                         },
-                        // Clientes registrados en los últimos 365 días (sin préstamos o con préstamos antiguos)
                         {
                             AND: [
                                 { createdAt: { gte: oneYearAgo } },
@@ -141,16 +138,13 @@ export const getClientsByStatus = async (
             baseWhere.AND = [
                 { isDisallowed: false },
                 {
-                    // Cliente registrado hace más de 365 días
                     createdAt: { lt: oneYearAgo }
                 },
                 {
                     OR: [
-                        // Sin préstamos
                         {
                             loans: { none: {} }
                         },
-                        // Todos los préstamos fueron creados hace más de 365 días y no están activos
                         {
                             loans: {
                                 every: {
@@ -173,7 +167,8 @@ export const getClientsByStatus = async (
             ];
             break;
 
-        // "all" no necesita filtros adicionales
+        default:
+            break;
     }
 
     if (managedByUserId) {
@@ -182,6 +177,36 @@ export const getClientsByStatus = async (
             { managedByUserId },
         ];
     }
+
+    return baseWhere;
+}
+
+export type ClientStatsCounts = {
+    total: number;
+    active: number;
+    inactive: number;
+    blocked: number;
+};
+
+/** Conteos alineados con las pestañas de la lista de clientes. */
+export const getClientStatsCounts = async (
+    managedByUserId?: string | null
+): Promise<ClientStatsCounts> => {
+    const [total, active, inactive, blocked] = await Promise.all([
+        db.client.count({ where: buildClientWhereForStatus("all", managedByUserId) }),
+        db.client.count({ where: buildClientWhereForStatus("active", managedByUserId) }),
+        db.client.count({ where: buildClientWhereForStatus("inactive", managedByUserId) }),
+        db.client.count({ where: buildClientWhereForStatus("blocked", managedByUserId) }),
+    ]);
+
+    return { total, active, inactive, blocked };
+};
+
+export const getClientsByStatus = async (
+    status: ClientStatusFilter,
+    managedByUserId?: string | null
+): Promise<Client[]> => {
+    const baseWhere = buildClientWhereForStatus(status, managedByUserId);
 
     return await db.client.findMany({
         where: baseWhere,

@@ -16,7 +16,7 @@ import { getLoansByStatus, type LoanStatusFilter } from "@/actions/loans";
 import { getManagers, type ManagerUser } from "@/actions/users";
 import { Loan } from "@prisma/client";
 import { DataTable } from "@/components/datatable";
-import { columnsLoan } from "./columns-loan";
+import { columnsLoan, columnsLoanOverdue } from "./columns-loan";
 import useTabManager from "@/hooks/use-tab";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -169,7 +169,13 @@ export function TabsLoanList() {
         </TabsList>
         {tabs.map((tab) => (
           <TabsContent key={tab.value} value={tab.value} className="space-y-4">
-            <DataTable loading={isLoading} data={filteredLoans} columns={columnsLoan} />
+            <DataTable
+              loading={isLoading}
+              data={filteredLoans}
+              columns={
+                tab.value === "overdue" ? columnsLoanOverdue : columnsLoan
+              }
+            />
           </TabsContent>
         ))}
       </Tabs>
