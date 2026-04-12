@@ -1,13 +1,14 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown, Eye } from "lucide-react";
+import { ArrowUpDown, CircleDollarSign, Eye, Trash2 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { differenceInCalendarDays, startOfDay } from "date-fns";
 
 import { Loan, LoanStatus, PaymentFrequency } from "@prisma/client";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
+import { DeleteLoanDialog } from "../gestionar/[loanId]/_components/delete-loan-dialog";
 
 /** Fila de la tabla de préstamos (lista en dashboard). */
 export type LoanTableRow = Loan & {
@@ -342,13 +343,31 @@ const loanColumnsBase: ColumnDef<LoanTableRow>[] = [
     },
     cell: ({ row }) => {
       return (
-        <div className="">
+        <div className="flex gap-3">
           <Link
             className={buttonVariants()}
             href={`/dashboard/prestamos/gestionar/${row.original.id}`}
           >
             <Eye className="w-4 h-4" />
           </Link>
+          <Link
+            className={buttonVariants({ className: "!bg-blue-600 hover:!bg-blue-700" })}
+            href={`/dashboard/prestamos/gestionar/${row.original.id}/registrar-pago`}
+          >
+            <CircleDollarSign className="w-4 h-4 text-white" />
+          </Link>
+          <DeleteLoanDialog
+            loan={{
+              ...row.original,
+              client: row.original.client || { fullName: "" },
+              payments: [],
+            }}
+            trigger={
+              <Button variant="destructive" size="icon">
+                <Trash2 className="w-5 h-5" />
+              </Button>
+            }
+          />
         </div>
       );
     },

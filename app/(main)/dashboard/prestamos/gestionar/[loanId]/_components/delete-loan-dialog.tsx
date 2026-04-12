@@ -48,7 +48,7 @@ export function DeleteLoanDialog({ loan, trigger }: DeleteLoanDialogProps) {
 
   // Siempre cancelar en lugar de eliminar
   const action = "cancelar";
-  const actionCapitalized = "Cancelar";
+  const actionCapitalized = "Eliminar";
 
   const handleSubmit = () => {
     if (!password.trim()) {

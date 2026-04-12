@@ -246,19 +246,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
     return { capital, interest, total };
   });
 
-  console.log({ baseCapitalAmount });
-
-  console.log({
-    loanType: loan.interestType,
-    feeAmount: loan.feeAmount,
-    currentInterest,
-    decreasingCapital,
-    baseCapitalAmount,
-  });
-
-  const initialAmount = baseCapitalAmount + currentInterest;
-
-  console.log({ initialAmount , baseCapitalAmount, currentInterest});
+  
 
   // Calcular el capital inicial: si baseCapitalAmount es mayor al balance, usar el balance
   const initialCapitalAmount = Math.min(baseCapitalAmount, loan.balance);
@@ -295,34 +283,25 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
   //   form.setValue("accounts", selectedAccounts);
   // }, [selectedAccounts, form]);
 
-  useEffect(() => {
-    console.log({
-      calculatedPayment,
-    });
-  }, [calculatedPayment]);
 
   const { watch } = form;
   const capitalAmount = watch("capitalAmount");
   const interestAmount = watch("interestAmount");
   const paymentDateWatched = watch("paymentDate");
 
-  console.log("=== FORM VALUES DEBUG ===");
-  console.log("capitalAmount:", capitalAmount, "type:", typeof capitalAmount);
-  console.log("interestAmount:", interestAmount, "type:", typeof interestAmount);
-  console.log("loan.balance:", loan.balance);
 
   // Detectar si el usuario está cerca del saldo total y sugerir el monto exacto
   const isNearFullBalance = capitalAmount && Math.abs(Number(capitalAmount) - loan.balance) <= 5;
   const shouldSuggestFullBalance = isNearFullBalance && Number(capitalAmount) < loan.balance;
 
   // Calcular el monto total del pago para el selector de cuentas
-  const totalPaymentAmount = Number(capitalAmount || 0) + Number(interestAmount || 0);
+  // const totalPaymentAmount = Number(capitalAmount || 0) + Number(interestAmount || 0);
 
-  console.log({
-    totalPaymentAmount,
-    capitalAmountNumber: Number(capitalAmount || 0),
-    interestAmountNumber: Number(interestAmount || 0),
-  });
+  // console.log({
+  //   totalPaymentAmount,
+  //   capitalAmountNumber: Number(capitalAmount || 0),
+  //   interestAmountNumber: Number(interestAmount || 0),
+  // });
 
   // Actualizar el interés cuando cambia la fecha de pago
   useEffect(() => {
@@ -389,11 +368,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
     decreasingCapital,
   ]);
 
-  useEffect(() => {
-    console.log({
-      calculatedPayment,
-    });
-  }, [calculatedPayment]);
+
 
   /** Días del ciclo 30 en orden pactado (tabla LoanPaymentDay). */
   const orderedCycleDays =
@@ -402,7 +377,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
 
   // Función para calcular automáticamente la próxima fecha de pago
   const calculateAndSetNextPaymentDate = async (paymentDate: Date) => {
-    console.log("Calculating next payment date for:", paymentDate);
+  
 
     const fromCycle = getNextDateFromPaymentCycle(
       paymentDate,

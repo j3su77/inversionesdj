@@ -126,7 +126,7 @@ export const getLoansByStatus = async (
         ];
         break;
       case "all":
-        // No aplicar filtros
+        whereClause.status = { not: "CANCELLED" };
         break;
     }
 

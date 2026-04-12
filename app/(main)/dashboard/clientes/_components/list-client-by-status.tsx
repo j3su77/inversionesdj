@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { DataTable } from "@/components/datatable";
-import { columnsClient } from "./columns-client";
+import { createColumnsClient } from "./columns-client";
 import { getClientsByStatus } from "@/actions/clients";
 import { Client, Loan } from "@prisma/client";
 
@@ -45,20 +45,23 @@ export const ListClientsByStatus = ({
   const [data, setData] = useState<(Client & { loans: Loan[] })[]>([]);
   const [isLoading, setIsloading] = useState(true);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     setIsloading(true);
-    const load = async () => {
-      try {
-        const clients = await clientsByStatus(status, managedByUserId);
-        setData(clients as (Client & { loans: Loan[] })[]);
-      } catch (error) {
-        console.log({ error });
-      } finally {
-        setIsloading(false);
-      }
-    };
-    load();
+    try {
+      const clients = await clientsByStatus(status, managedByUserId);
+      setData(clients as (Client & { loans: Loan[] })[]);
+    } catch (error) {
+      console.log({ error });
+    } finally {
+      setIsloading(false);
+    }
   }, [status, managedByUserId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const columns = useMemo(() => createColumnsClient(load), [load]);
 
   const filteredData = useMemo(() => {
     return data.filter((client) => matchClientSearch(client, searchQuery));
@@ -72,10 +75,8 @@ export const ListClientsByStatus = ({
         </div>
       ) : (
         <DataTable
-          columns={columnsClient}
+          columns={columns}
           data={filteredData}
-          // editHref={{ btnText: "Ver", href: "/dashboard/clientes/editar", }}
-          
         />
       )}
     </div>

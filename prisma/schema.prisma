@@ -135,6 +135,7 @@ model Client {
   documents         Document[]
 
   isDisallowed Boolean   @default(false)
+  notes        String?
   // Timestamps
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt

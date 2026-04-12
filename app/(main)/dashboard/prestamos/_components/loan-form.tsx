@@ -50,7 +50,11 @@ import { ChangeFrequencyForm } from "./change-frequency-form";
 import { ChangeNextPaymentDateForm } from "./change-next-payment-date-form";
 import { getManagers, type ManagerUser } from "@/actions/users";
 import { ProductInfoModal } from "./product-info-modal";
-import { Package, Pencil } from "lucide-react";
+import { Package, Pencil, CalendarDays } from "lucide-react";
+import {
+  frequencyUsesPaymentDayConfig,
+  getPaymentDaySlotsForFrequency,
+} from "@/lib/loan-payment-days";
 
 interface LoanFormProps {
   client: Client;
@@ -141,6 +145,7 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
   const isEdit = Boolean(loan);
   const [managers, setManagers] = useState<ManagerUser[]>([]);
   const [productInfoModalOpen, setProductInfoModalOpen] = useState(false);
+  const [paymentDayValues, setPaymentDayValues] = useState<string[]>([]);
 
   useEffect(() => {
     getManagers().then(setManagers);
@@ -208,6 +213,15 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
     form.setValue("paymentFrequency", loan.paymentFrequency);
   }, [loan?.id, loan?.updatedAt, loan?.paymentFrequency, form]);
 
+  const currentFrequency = form.watch("paymentFrequency");
+
+  // Resetear los días de pago cuando cambia la frecuencia (solo en creación)
+  useEffect(() => {
+    if (isEdit) return;
+    const slots = getPaymentDaySlotsForFrequency(currentFrequency);
+    setPaymentDayValues(Array.from({ length: slots }, () => ""));
+  }, [currentFrequency, isEdit]);
+
   const { isSubmitting, isValid } = form.formState;
   // const totalAmount = form.watch("totalAmount");
 
@@ -243,11 +257,32 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
         });
         toast.success("Préstamo actualizado");
       } else {
+        // Validar y parsear días de pago si aplica para la frecuencia seleccionada
+        let parsedPaymentDays: number[] | undefined;
+        if (frequencyUsesPaymentDayConfig(values.paymentFrequency)) {
+          const slots = getPaymentDaySlotsForFrequency(values.paymentFrequency);
+          parsedPaymentDays = [];
+          for (let i = 0; i < slots; i++) {
+            const raw = paymentDayValues[i]?.trim() ?? "";
+            if (raw === "") {
+              toast.error(`Complete el día de pago ${i + 1}`);
+              return;
+            }
+            const n = Number.parseInt(raw, 10);
+            if (Number.isNaN(n) || n < 1 || n > 30) {
+              toast.error(`El día ${i + 1} debe ser un número entre 1 y 30`);
+              return;
+            }
+            parsedPaymentDays.push(n);
+          }
+        }
+
         const response = await fetch("/api/loans", {
           method: "POST",
           body: JSON.stringify({
             ...values,
             clientId: client.id,
+            paymentDays: parsedPaymentDays,
           }),
         });
 
@@ -473,6 +508,49 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
                 );
               }}
             />
+
+            {!isEdit && frequencyUsesPaymentDayConfig(currentFrequency) && (
+              <div className="md:col-span-2">
+                <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                    <p className="font-medium text-sm">Días de pago</p>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Ingresa los días del mes comercial (1–30) en los que se realizará el cobro. Se repiten en cada ciclo.
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {Array.from(
+                      { length: getPaymentDaySlotsForFrequency(currentFrequency) },
+                      (_, i) => (
+                        <div key={i} className="space-y-1">
+                          <label
+                            htmlFor={`payment-day-new-${i}`}
+                            className="text-sm font-medium leading-none"
+                          >
+                            Día {i + 1}
+                          </label>
+                          <Input
+                            id={`payment-day-new-${i}`}
+                            type="number"
+                            min={1}
+                            max={30}
+                            inputMode="numeric"
+                            placeholder="1–30"
+                            value={paymentDayValues[i] ?? ""}
+                            onChange={(ev) => {
+                              const next = [...paymentDayValues];
+                              next[i] = ev.target.value;
+                              setPaymentDayValues(next);
+                            }}
+                          />
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {isEdit && loan?.status === "ACTIVE" && (
               <div className="md:col-span-2">

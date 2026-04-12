@@ -80,11 +80,11 @@ export const HandleInfoLoan = ({
       ) : (
         <div className="grid gap-6 ">
           <LoanInfoCard loan={loan} paymentDays={loan.paymentDays} />
-          <LoanPaymentDaysCard
+          {/* <LoanPaymentDaysCard
             loanId={loan.id}
             paymentFrequency={loan.paymentFrequency}
             paymentDays={loan.paymentDays}
-          />
+          /> */}
           <ClientInfoCard client={loan.client} />
         </div>
       )}

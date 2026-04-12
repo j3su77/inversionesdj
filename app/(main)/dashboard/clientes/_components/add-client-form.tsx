@@ -32,7 +32,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Client, MaritalStatus } from "@prisma/client";
 import { Banner } from "@/components/banner";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { getManagers, type ManagerUser } from "@/actions/users";
+// import { getManagers, type ManagerUser } from "@/actions/users";
 import { checkClientIdentification } from "@/actions/clients";
 import { FormattedInput } from "@/components/ui/formatted-input";
 
@@ -61,7 +61,7 @@ const formSchema = z.object({
   companyTenure: z.coerce.number().optional(),
   currentPosition: z.string().optional(),
   isDisallowed: z.boolean(),
-  managedByUserId: z.string().min(1, "Debe seleccionar el usuario asignado"),
+  // managedByUserId: z.string().min(1, "Debe seleccionar el usuario asignado"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -69,7 +69,7 @@ type FormValues = z.infer<typeof formSchema>;
 export const AddClientForm = ({ client }: AddClientFormProps) => {
   const router = useRouter();
   const isEdit = useMemo(() => client, [client]);
-  const [managers, setManagers] = useState<ManagerUser[]>([]);
+  // const [managers, setManagers] = useState<ManagerUser[]>([]);
   const [isCheckingId, setIsCheckingId] = useState(false);
 
   if (isEdit && !client) {
@@ -96,7 +96,7 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
       monthlyIncome: client?.monthlyIncome ?? undefined,
       companyTenure: client?.companyTenure ?? undefined,
       currentPosition: client?.currentPosition ?? "",
-      managedByUserId: (client as Client & { managedByUserId?: string | null })?.managedByUserId ?? "",
+      // managedByUserId: (client as Client & { managedByUserId?: string | null })?.managedByUserId ?? "",
     },
   });
   const { isSubmitting, isValid } = form.formState;
@@ -108,9 +108,9 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
     500
   );
 
-  useEffect(() => {
-    getManagers().then(setManagers);
-  }, []);
+  // useEffect(() => {
+  //   getManagers().then(setManagers);
+  // }, []);
 
   useEffect(() => {
     const num = parseInt(debouncedIdentification, 10);
@@ -194,6 +194,7 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
         <CardContent className="p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              {/* Campo "Usuario asignado" — deshabilitado temporalmente
               <FormField
                 control={form.control}
                 name="managedByUserId"
@@ -228,6 +229,7 @@ export const AddClientForm = ({ client }: AddClientFormProps) => {
                   </FormItem>
                 )}
               />
+              */}
 
               {/* Sección: Información Personal */}
               <div className="space-y-4">

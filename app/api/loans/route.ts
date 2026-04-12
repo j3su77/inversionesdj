@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { addDays, addMonths, addWeeks } from "date-fns";
 import { createLoanAuditLog } from "@/lib/loan-audit";
+import {
+  frequencyUsesPaymentDayConfig,
+  validatePaymentDaysForFrequency,
+  getNextDateFromPaymentCycle,
+} from "@/lib/loan-payment-days";
 
 // interface AccountSelection {
 //     accountId: string;
@@ -23,8 +28,17 @@ export async function POST(req: Request) {
       coDebtor,
       productInfo,
       managedByUserId,
+      paymentDays,
       // accounts,
     } = body;
+
+    // Validar días de pago si se proporcionaron
+    if (paymentDays && Array.isArray(paymentDays) && paymentDays.length > 0) {
+      const validation = validatePaymentDaysForFrequency(paymentFrequency, paymentDays);
+      if (!validation.ok) {
+        return NextResponse.json({ message: validation.message }, { status: 400 });
+      }
+    }
 
     if (!managedByUserId || typeof managedByUserId !== "string") {
       return NextResponse.json(
@@ -188,6 +202,25 @@ export async function POST(req: Request) {
         break;
     }
 
+    // Si el usuario proporcionó días de pago, recalcular nextPaymentDate usando el ciclo
+    // para que apunte al próximo día pactado real (ej: días 1 y 15 → próximo 15 abril)
+    // en lugar de la fecha calculada mecánicamente por frecuencia (+15 días, +1 semana, etc.)
+    if (
+      paymentDays &&
+      Array.isArray(paymentDays) &&
+      paymentDays.length > 0 &&
+      frequencyUsesPaymentDayConfig(paymentFrequency)
+    ) {
+      const cycleNextDate = getNextDateFromPaymentCycle(
+        normalizedStartDate,
+        paymentDays as number[],
+        paymentFrequency
+      );
+      if (cycleNextDate) {
+        nextPaymentDate = cycleNextDate;
+      }
+    }
+
     // Crear el préstamo usando una transacción
     const loan = await prisma.$transaction(async (tx) => {
         // 1. Verificar el cliente
@@ -272,7 +305,23 @@ export async function POST(req: Request) {
             },
         })
 
-        // 4. Crear las relaciones LoanAccount (sin afectar saldos)
+        // 4. Guardar días de pago si se proporcionaron
+        if (
+          paymentDays &&
+          Array.isArray(paymentDays) &&
+          paymentDays.length > 0 &&
+          frequencyUsesPaymentDayConfig(paymentFrequency)
+        ) {
+          await tx.loanPaymentDay.createMany({
+            data: (paymentDays as number[]).map((dayOfCycle, sortOrder) => ({
+              loanId: loan.id,
+              dayOfCycle,
+              sortOrder,
+            })),
+          });
+        }
+
+        // 5. Crear las relaciones LoanAccount (sin afectar saldos)
         // for (const accountSelection of accounts) {
         //     // Crear la relación
         //     await tx.loanAccount.create({

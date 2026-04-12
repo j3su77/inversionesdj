@@ -4,20 +4,18 @@ import { ColumnDef } from "@tanstack/react-table";
 import {
   ArrowUpDown,
   CircleDollarSign,
-  MoreHorizontal,
   Pencil,
+  Trash2,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Client, Loan, LoanStatus } from "@prisma/client";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import Link from "next/link";
+import { DeleteClientDialog } from "./delete-client-dialog";
 
-export const columnsClient: ColumnDef<Client & { loans: Loan[] }>[] = [
+export function createColumnsClient(
+  onDeleted?: () => void
+): ColumnDef<Client & { loans: Loan[] }>[] {
+  return [
   {
     accessorKey: "fullName",
 
@@ -130,35 +128,33 @@ export const columnsClient: ColumnDef<Client & { loans: Loan[] }>[] = [
     },
     cell: ({ row }) => {
       return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-4 w-8 p-0">
-              <span className="sr-only">abrir menu</span>
-              <MoreHorizontal />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="flex flex-col">
-            <DropdownMenuItem asChild className="cursor-pointer">
-              <Link
-                className="flex justify-center"
-                href={`/dashboard/clientes/editar/${row.original.id}`}
-              >
-                <Pencil className="w-4 h-4 mr-2" />
-                Editar
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild className="cursor-pointer">
-              <Link
-                className="flex justify-center"
-                href={`/dashboard/prestamos/registrar?clientId=${row.original.id}`}
-              >
-                <CircleDollarSign className="w-4 h-4 mr-2" />
-                Registrar Prestamo
-              </Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex gap-3">
+          <Link
+            href={`/dashboard/clientes/editar/${row.original.id}`}
+            className={buttonVariants()}
+          >
+            <Pencil className="w-6 h-6 text-white" />
+          </Link>
+
+          <Link
+            className={buttonVariants()}
+            href={`/dashboard/prestamos/registrar?clientId=${row.original.id}`}
+          >
+            <CircleDollarSign className="w-6 h-6 text-white" />
+          </Link>
+
+          <DeleteClientDialog
+            client={row.original}
+            onDeleted={onDeleted}
+            trigger={
+              <Button variant="destructive" size="icon">
+                <Trash2 className="w-5 h-5" />
+              </Button>
+            }
+          />
+        </div>
       );
     },
   },
-];
+  ];
+}

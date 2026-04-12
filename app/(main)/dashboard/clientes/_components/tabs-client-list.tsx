@@ -1,32 +1,32 @@
 "use client"
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Search } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+// import {
+//   Select,
+//   SelectContent,
+//   SelectItem,
+//   SelectTrigger,
+//   SelectValue,
+// } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { ListClientsByStatus } from "./list-client-by-status";
-import { getManagers, type ManagerUser } from "@/actions/users";
+// import { getManagers, type ManagerUser } from "@/actions/users";
 import { ClientStatsCards } from "../../_components/client-stats-cards";
 
 export const TabsClientList = () => {
-  const [managers, setManagers] = useState<ManagerUser[]>([]);
-  const [managedByUserId, setManagedByUserId] = useState<string | null>(null);
+  // const [managers, setManagers] = useState<ManagerUser[]>([]);
+  // const [managedByUserId, setManagedByUserId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
-    getManagers().then(setManagers);
-  }, []);
+  // useEffect(() => {
+  //   getManagers().then(setManagers);
+  // }, []);
 
   return (
     <div className="space-y-4">
-      <ClientStatsCards managedByUserId={managedByUserId} />
+      <ClientStatsCards managedByUserId={null} />
 
       <div className="flex flex-wrap items-center gap-4 mt-6">
         <div className="relative flex-1 min-w-[200px] max-w-md">
@@ -38,6 +38,7 @@ export const TabsClientList = () => {
             className="pl-9"
           />
         </div>
+        {/* Filtro por gestor — deshabilitado temporalmente
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Gestor:</span>
           <Select
@@ -57,6 +58,7 @@ export const TabsClientList = () => {
             </SelectContent>
           </Select>
         </div>
+        */}
       </div>
       <Tabs defaultValue="active" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
@@ -66,16 +68,16 @@ export const TabsClientList = () => {
           <TabsTrigger value="blocked">Bloqueados</TabsTrigger>
         </TabsList>
         <TabsContent value="all">
-          <ListClientsByStatus status="all" managedByUserId={managedByUserId} searchQuery={searchQuery} />
+          <ListClientsByStatus status="all" managedByUserId={null} searchQuery={searchQuery} />
         </TabsContent>
         <TabsContent value="active">
-          <ListClientsByStatus status="active" managedByUserId={managedByUserId} searchQuery={searchQuery} />
+          <ListClientsByStatus status="active" managedByUserId={null} searchQuery={searchQuery} />
         </TabsContent>
         <TabsContent value="inactive">
-          <ListClientsByStatus status="inactive" managedByUserId={managedByUserId} searchQuery={searchQuery} />
+          <ListClientsByStatus status="inactive" managedByUserId={null} searchQuery={searchQuery} />
         </TabsContent>
         <TabsContent value="blocked">
-          <ListClientsByStatus status="blocked" managedByUserId={managedByUserId} searchQuery={searchQuery} />
+          <ListClientsByStatus status="blocked" managedByUserId={null} searchQuery={searchQuery} />
         </TabsContent>
       </Tabs>
     </div>
