@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { LoanStatus } from "@prisma/client";
 import { createLoanAuditLog } from "@/lib/loan-audit";
+import {
+  advanceInstallmentDate,
+  getLoanDisbursementDate,
+} from "@/lib/loan-payment-days";
 
 // interface AccountSelection {
 //   accountId: string;
@@ -83,7 +87,12 @@ export async function POST(
         paymentFrequency: true,
         currentInstallmentAmount: true,
         startDate: true,
-        nextPaymentDate: true, // Necesitamos la fecha programada original
+        disbursementDate: true,
+        nextPaymentDate: true,
+        paymentDays: {
+          orderBy: { sortOrder: "asc" },
+          select: { dayOfCycle: true },
+        },
         payments: {
           orderBy: {
             installmentNumber: "desc",
@@ -170,7 +179,7 @@ export async function POST(
     const normalizedPaymentDate = normalizeDate(paymentDate);
     const referenceDate = lastPayment 
       ? normalizeDate(lastPayment.paymentDate)
-      : normalizeDate(loan.startDate);
+      : normalizeDate(getLoanDisbursementDate(loan));
     
     // Calcular días para el cálculo de intereses
     // Método 30/360: Para préstamos mensuales y trimestrales, siempre usar 30 días por mes
@@ -298,31 +307,12 @@ export async function POST(
       }
 
       if (!calculatedNextPaymentDate) {
-        // Fallback: fecha programada original del préstamo + intervalo según frecuencia
-        const baseDate = loan.nextPaymentDate
-          ? new Date(loan.nextPaymentDate)
-          : new Date(paymentDate);
-
-        const daysToAdd = (() => {
-          switch (loan.paymentFrequency) {
-            case "DAILY":
-              return 1;
-            case "WEEKLY":
-              return 7;
-            case "BIWEEKLY":
-              return 15;
-            case "MONTHLY":
-              return 30;
-            case "QUARTERLY":
-              return 90;
-            default:
-              return 30;
-          }
-        })();
-
-        calculatedNextPaymentDate = new Date(baseDate);
-        calculatedNextPaymentDate.setDate(
-          calculatedNextPaymentDate.getDate() + daysToAdd
+        const orderedCycleDays =
+          loan.paymentDays?.map((p) => p.dayOfCycle) ?? [];
+        calculatedNextPaymentDate = advanceInstallmentDate(
+          normalizedPaymentDate,
+          loan.paymentFrequency,
+          orderedCycleDays
         );
       }
     }

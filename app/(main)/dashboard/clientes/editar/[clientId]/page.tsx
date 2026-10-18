@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { TitlePage } from "@/components/title-page";
 import { UserRoundPen } from "lucide-react";
 import { TabsEditClient } from "../_components/tabs-edit-client";
+import { loanNotCancelledWhere } from "@/lib/loan-filters";
 
 const EditClientPage = async ({ params }: { params: Promise<{ clientId: string }> }) => {
   const { clientId } = await params;
@@ -12,10 +13,10 @@ const EditClientPage = async ({ params }: { params: Promise<{ clientId: string }
     include: {
       documents: true,
       loans: {
-        // Solo obtener datos básicos de préstamos para estadísticas
-        // El cálculo del perfil se hace en el endpoint API
+        where: loanNotCancelledWhere,
         select: {
           id: true,
+          loanNumber: true,
           totalAmount: true,
           balance: true,
           status: true,

@@ -140,8 +140,27 @@ export function LoanInfoCard({ loan, paymentDays }: LoanInfoCardProps) {
           />
           <InfoItem
             icon={<Calendar className="h-4 w-4" />}
-            label="Fecha de inicio"
+            label="Fecha de desembolso"
+            value={format(
+              new Date(
+                (loan as typeof loan & { disbursementDate?: Date | null })
+                  .disbursementDate ?? loan.startDate,
+              ),
+              "dd 'de' MMMM 'de' yyyy",
+              { locale: es },
+            )}
+          />
+          <InfoItem
+            icon={<Calendar className="h-4 w-4" />}
+            label="Inicio del plan (1.ª cuota)"
             value={format(new Date(loan.startDate), "dd 'de' MMMM 'de' yyyy", {
+              locale: es,
+            })}
+          />
+          <InfoItem
+            icon={<Calendar className="h-4 w-4" />}
+            label="Fin del plan (última cuota)"
+            value={format(new Date(loan.endDate), "dd 'de' MMMM 'de' yyyy", {
               locale: es,
             })}
           />

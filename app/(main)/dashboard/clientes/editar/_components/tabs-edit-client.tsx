@@ -2,7 +2,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CreditCard, User, File } from "lucide-react";
+import { CreditCard, ExternalLink, User, File } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -500,20 +500,32 @@ export const TabsEditClient = ({
                 <div className="space-y-4">
                   {client.loans.map((loan) => (
                     <div key={loan.id} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-start">
+                      <div className="flex flex-wrap justify-between items-start gap-2">
                         <div>
                           <h3 className="font-medium">
-                            Préstamo #{loan.loanNumber}
+                            Préstamo #{loan.loanNumber ?? "—"}
                           </h3>
                           <p className="text-sm text-muted-foreground">
                             {formatDate(loan.startDate)} - {formatDate(loan.endDate)}
                           </p>
                         </div>
-                        <Badge
-                          variant={loan.balance > 0 ? "warning" : "default"}
-                        >
-                          {loan.balance > 0 ? "Activo" : "Pagado"}
-                        </Badge>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge
+                            variant={loan.balance > 0 ? "warning" : "default"}
+                          >
+                            {loan.balance > 0 ? "Activo" : "Pagado"}
+                          </Badge>
+                          <Button variant="outline" size="sm" asChild>
+                            <Link
+                              href={`/dashboard/prestamos/gestionar/${loan.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <ExternalLink className="h-4 w-4 mr-1" />
+                              Ver préstamo
+                            </Link>
+                          </Button>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-3 gap-4 mt-4">
@@ -597,7 +609,7 @@ export const TabsEditClient = ({
       </TabsContent>
 
       <TabsContent value="documents">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2 xl:items-start">
           <AddDocumentIdcard initialData={client} />
           <AddDocumentUtilityBill initialData={client} />
         </div>

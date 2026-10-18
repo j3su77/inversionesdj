@@ -70,9 +70,9 @@ export const getLoansByStatus = async (
         /**
          * Vence hoy si:
          * - frecuencia diaria, o
-         * - tiene días de ciclo 30 configurados y el día comercial de hoy coincide, o
-         * - no tiene días configurados y nextPaymentDate sigue siendo hoy (préstamos legacy).
-         * Y no tiene ya un pago registrado con fecha de hoy (cuota del día cubierta).
+         * - nextPaymentDate es hoy (fecha pactada / manual al registrar pago), o
+         * - legacy sin nextPaymentDate: día comercial coincide con paymentDays.
+         * Excluye préstamos con pago registrado hoy.
          */
         const commercialDay = getCommercialDayOfMonth(today);
         const dayStart = startOfDay(today);
@@ -95,17 +95,17 @@ export const getLoansByStatus = async (
             OR: [
               { paymentFrequency: "DAILY" },
               {
-                paymentDays: {
-                  some: { dayOfCycle: commercialDay },
+                nextPaymentDate: {
+                  gte: dayStart,
+                  lte: dayEnd,
                 },
               },
               {
                 AND: [
-                  { paymentDays: { none: {} } },
+                  { nextPaymentDate: null },
                   {
-                    nextPaymentDate: {
-                      gte: dayStart,
-                      lte: dayEnd,
+                    paymentDays: {
+                      some: { dayOfCycle: commercialDay },
                     },
                   },
                 ],
@@ -256,7 +256,7 @@ export const getLoanStats = async () => {
       loan.nextPaymentDate && loan.nextPaymentDate >= startOfToday
     );
 
-    // Préstamos que vencen hoy (ciclo 30 + diario + fallback nextPaymentDate), sin pago hoy
+    // Préstamos que vencen hoy (nextPaymentDate hoy + diario; legacy ciclo 30), sin pago hoy
     const dueTodayLoans = activeLoans.filter((loan) =>
       isLoanDueToday(
         {

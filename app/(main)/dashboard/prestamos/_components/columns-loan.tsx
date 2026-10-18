@@ -71,6 +71,54 @@ const getLoanStatusText = (status: LoanStatus) => {
   }
 };
 
+/** Fondo de fila alineado con badges de la ficha del préstamo. */
+export function getLoanRowClassName(loan: LoanTableRow): string {
+  const base = "transition-colors border-b-border/60";
+
+  switch (loan.status) {
+    case "PENDING":
+      return `${base} bg-amber-50/90 hover:bg-amber-100/80`;
+    case "COMPLETED":
+      return `${base} bg-sky-50/90 hover:bg-sky-100/70`;
+    case "CANCELLED":
+      return `${base} bg-muted/40 hover:bg-muted/60 text-muted-foreground`;
+    case "DEFAULTED":
+      return `${base} bg-red-50/90 hover:bg-red-100/80`;
+    case "ACTIVE": {
+      const overdue =
+        loan.nextPaymentDate != null &&
+        getDaysOverdueSinceNextPayment(loan.nextPaymentDate) > 0;
+      if (overdue) {
+        return `${base} bg-red-50/80 hover:bg-red-100/70`;
+      }
+      return `${base} bg-emerald-50/50 hover:bg-emerald-100/60`;
+    }
+    default:
+      return base;
+  }
+}
+
+const loanStatusBadgeClass: Record<LoanStatus, string> = {
+  PENDING: "bg-amber-100 text-amber-900 border-amber-200",
+  ACTIVE: "bg-emerald-100 text-emerald-900 border-emerald-200",
+  COMPLETED: "bg-sky-100 text-sky-900 border-sky-200",
+  DEFAULTED: "bg-red-100 text-red-900 border-red-200",
+  CANCELLED: "bg-muted text-muted-foreground border-border",
+};
+
+export function getLoanStatusBadgeClass(
+  loan: Pick<LoanTableRow, "status" | "nextPaymentDate">
+): string {
+  if (
+    loan.status === "ACTIVE" &&
+    loan.nextPaymentDate != null &&
+    getDaysOverdueSinceNextPayment(loan.nextPaymentDate) > 0
+  ) {
+    return loanStatusBadgeClass.DEFAULTED;
+  }
+  return loanStatusBadgeClass[loan.status] ?? loanStatusBadgeClass.CANCELLED;
+}
+
 const loanColumnsBase: ColumnDef<LoanTableRow>[] = [
   {
     accessorKey: "Numero prestamo",
@@ -324,8 +372,18 @@ const loanColumnsBase: ColumnDef<LoanTableRow>[] = [
       );
     },
     cell: ({ row }) => {
-      const status = row.original.status;
-      return <div className="">{getLoanStatusText(status)}</div>;
+      const loan = row.original;
+      return (
+        <span
+          className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${getLoanStatusBadgeClass(loan)}`}
+        >
+          {loan.status === "ACTIVE" &&
+          loan.nextPaymentDate != null &&
+          getDaysOverdueSinceNextPayment(loan.nextPaymentDate) > 0
+            ? "En mora"
+            : getLoanStatusText(loan.status)}
+        </span>
+      );
     },
   },
   {

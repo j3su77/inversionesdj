@@ -70,6 +70,16 @@ export const HandleInfoLoan = ({
             loanId={loan.id}
             paymentFrequency={loan.paymentFrequency}
             paymentDays={loan.paymentDays}
+            disbursementDate={
+              (loan as Loan & { disbursementDate?: Date | null })
+                .disbursementDate ?? loan.startDate
+            }
+            firstPaymentDate={
+              (loan as Loan & { firstPaymentDate?: Date | null })
+                .firstPaymentDate ?? null
+            }
+            nextPaymentDate={loan.nextPaymentDate}
+            paymentsCount={loan.payments.length}
           />
 
           {/* Solo mostrar el botón de eliminar si el préstamo está activo o pendiente */}

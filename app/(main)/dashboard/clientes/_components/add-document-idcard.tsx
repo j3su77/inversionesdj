@@ -4,15 +4,14 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  ImageIcon,
   ImageUp,
   Loader2,
   Pencil,
   PlusCircle,
   Search,
 } from "lucide-react";
-import Image from "next/image";
 import axios from "axios";
+import { DocumentPreview } from "@/components/document-preview";
 import { Button } from "@/components/ui/button";
 import { Document } from "@prisma/client";
 import { IKUpload } from "imagekitio-next";
@@ -124,20 +123,11 @@ export const AddDocumentIdcard = ({ initialData }: ImageFormProps) => {
       </div>
 
       {!isEditing && (
-        <div className="relative aspect-video mt-2">
-          {hasDocument ? (
-            <Image
-              alt="Documento subido"
-              fill
-              className="object-cover rounded-md"
-              src={firstDocument.fileUrl}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-60 bg-slate-200 rounded-md">
-              <ImageIcon className="w-10 h-10 text-slate-500" />
-            </div>
-          )}
-        </div>
+        <DocumentPreview
+          fileUrl={hasDocument ? firstDocument!.fileUrl : ""}
+          alt="Documento de identidad"
+          emptyLabel="Sin documento de identidad"
+        />
       )}
 
       {isEditing && (

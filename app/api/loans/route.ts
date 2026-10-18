@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { addDays, addMonths, addWeeks } from "date-fns";
 import { createLoanAuditLog } from "@/lib/loan-audit";
 import {
   frequencyUsesPaymentDayConfig,
   validatePaymentDaysForFrequency,
-  getNextDateFromPaymentCycle,
+  validateFirstPaymentDate,
+  getLastInstallmentDate,
+  suggestFirstPaymentDate,
 } from "@/lib/loan-payment-days";
+import { startOfDay } from "date-fns";
 
 // interface AccountSelection {
 //     accountId: string;
@@ -23,6 +25,7 @@ export async function POST(req: Request) {
       interestRate,
       interestType,
       startDate,
+      firstPaymentDate: firstPaymentDateBody,
       paymentFrequency,
       notes,
       coDebtor,
@@ -32,9 +35,25 @@ export async function POST(req: Request) {
       // accounts,
     } = body;
 
+    const paymentDaysArray: number[] =
+      paymentDays && Array.isArray(paymentDays)
+        ? (paymentDays as number[])
+        : [];
+
     // Validar días de pago si se proporcionaron
-    if (paymentDays && Array.isArray(paymentDays) && paymentDays.length > 0) {
-      const validation = validatePaymentDaysForFrequency(paymentFrequency, paymentDays);
+    if (paymentDaysArray.length > 0) {
+      const validation = validatePaymentDaysForFrequency(
+        paymentFrequency,
+        paymentDaysArray
+      );
+      if (!validation.ok) {
+        return NextResponse.json({ message: validation.message }, { status: 400 });
+      }
+    } else if (frequencyUsesPaymentDayConfig(paymentFrequency)) {
+      const validation = validatePaymentDaysForFrequency(
+        paymentFrequency,
+        paymentDaysArray
+      );
       if (!validation.ok) {
         return NextResponse.json({ message: validation.message }, { status: 400 });
       }
@@ -66,14 +85,41 @@ export async function POST(req: Request) {
 
     // Normalizar la fecha de inicio para evitar problemas de zona horaria
     // Asegurarse de que la fecha se interprete correctamente (solo fecha, sin hora)
-    const normalizedStartDate = new Date(startDate);
-    normalizedStartDate.setHours(0, 0, 0, 0); // Establecer a medianoche para evitar problemas de zona horaria
+    const normalizedDisbursementDate = startOfDay(new Date(startDate));
 
-    // Calcular la fecha de finalización basada en la frecuencia de pagos
-    let endDate = new Date(normalizedStartDate);
+    let normalizedFirstPaymentDate: Date;
+    if (firstPaymentDateBody) {
+      normalizedFirstPaymentDate = startOfDay(new Date(firstPaymentDateBody));
+    } else {
+      normalizedFirstPaymentDate = suggestFirstPaymentDate(
+        normalizedDisbursementDate,
+        paymentFrequency,
+        paymentDaysArray
+      );
+    }
 
-    // Calcular la fecha del próximo pago basándose en la frecuencia
-    let nextPaymentDate = new Date(normalizedStartDate);
+    const firstPaymentValidation = validateFirstPaymentDate(
+      normalizedDisbursementDate,
+      normalizedFirstPaymentDate,
+      paymentFrequency,
+      paymentDaysArray
+    );
+    if (!firstPaymentValidation.ok) {
+      return NextResponse.json(
+        { message: firstPaymentValidation.message },
+        { status: 400 }
+      );
+    }
+
+    /** Inicio/fin del cronograma alineados a la 1.ª y última cuota. */
+    const scheduleStartDate = normalizedFirstPaymentDate;
+    const nextPaymentDate = normalizedFirstPaymentDate;
+    const endDate = getLastInstallmentDate(
+      scheduleStartDate,
+      installments,
+      paymentFrequency,
+      paymentDaysArray
+    );
 
     // El monto de la cuota base (capital) es el mismo para ambos tipos
     const baseFeeAmount = totalAmount / installments;
@@ -132,7 +178,10 @@ export async function POST(req: Request) {
     };
 
     // Calcular los días reales del período programado basado en la frecuencia
-    const daysInPeriod = getDaysInPeriod(normalizedStartDate, paymentFrequency);
+    const daysInPeriod = getDaysInPeriod(
+      normalizedDisbursementDate,
+      paymentFrequency
+    );
     
     // Calcular el interés ajustado según la frecuencia de pago usando días reales
     const adjustedInterestAmount = calculateInterestByDays(
@@ -177,49 +226,6 @@ export async function POST(req: Request) {
 
     // El balance inicial es diferente para cada tipo
     const initialBalance = totalAmount;
-
-    // Calcular fecha de finalización basada en la frecuencia
-    switch (paymentFrequency) {
-      case "DAILY":
-        endDate = addDays(endDate, installments);
-        nextPaymentDate = addDays(nextPaymentDate, 1);
-        break;
-      case "WEEKLY":
-        endDate = addWeeks(endDate, installments);
-        nextPaymentDate = addWeeks(nextPaymentDate, 1);
-        break;
-      case "BIWEEKLY":
-        endDate = addDays(endDate, installments * 15);
-        nextPaymentDate = addDays(nextPaymentDate, 15);
-        break;
-      case "MONTHLY":
-        endDate = addMonths(endDate, installments);
-        nextPaymentDate = addMonths(nextPaymentDate, 1);
-        break;
-      case "QUARTERLY":
-        endDate = addMonths(endDate, installments * 3);
-        nextPaymentDate = addMonths(nextPaymentDate, 3);
-        break;
-    }
-
-    // Si el usuario proporcionó días de pago, recalcular nextPaymentDate usando el ciclo
-    // para que apunte al próximo día pactado real (ej: días 1 y 15 → próximo 15 abril)
-    // en lugar de la fecha calculada mecánicamente por frecuencia (+15 días, +1 semana, etc.)
-    if (
-      paymentDays &&
-      Array.isArray(paymentDays) &&
-      paymentDays.length > 0 &&
-      frequencyUsesPaymentDayConfig(paymentFrequency)
-    ) {
-      const cycleNextDate = getNextDateFromPaymentCycle(
-        normalizedStartDate,
-        paymentDays as number[],
-        paymentFrequency
-      );
-      if (cycleNextDate) {
-        nextPaymentDate = cycleNextDate;
-      }
-    }
 
     // Crear el préstamo usando una transacción
     const loan = await prisma.$transaction(async (tx) => {
@@ -270,7 +276,9 @@ export async function POST(req: Request) {
                 paymentFrequency,
                 feeAmount: baseFee,
                 fixedInterestAmount,
-                startDate: normalizedStartDate,
+                startDate: scheduleStartDate,
+                disbursementDate: normalizedDisbursementDate,
+                firstPaymentDate: normalizedFirstPaymentDate,
                 endDate,
                 nextPaymentDate,
                 notes,
@@ -293,7 +301,9 @@ export async function POST(req: Request) {
                 paymentFrequency,
                 feeAmount: baseFee,
                 fixedInterestAmount,
-                startDate: normalizedStartDate,
+                startDate: scheduleStartDate,
+                disbursementDate: normalizedDisbursementDate,
+                firstPaymentDate: normalizedFirstPaymentDate,
                 endDate,
                 nextPaymentDate,
                 notes,
@@ -313,7 +323,7 @@ export async function POST(req: Request) {
           frequencyUsesPaymentDayConfig(paymentFrequency)
         ) {
           await tx.loanPaymentDay.createMany({
-            data: (paymentDays as number[]).map((dayOfCycle, sortOrder) => ({
+            data: paymentDaysArray.map((dayOfCycle, sortOrder) => ({
               loanId: loan.id,
               dayOfCycle,
               sortOrder,
@@ -348,6 +358,7 @@ export async function POST(req: Request) {
             interestRate: loan.interestRate,
             interestType: loan.interestType,
             paymentFrequency: loan.paymentFrequency,
+            firstPaymentDate: loan.firstPaymentDate,
             status: loan.status,
         },
     })

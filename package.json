@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:clients": "tsx --test lib/client-identification.test.ts lib/client-create-data.test.ts && tsx scripts/test-client-registration.ts",
+    "db:backfill-client-keys": "tsx scripts/backfill-active-identification-key.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",

@@ -106,7 +106,9 @@ model Client {
   id                String             @id @default(uuid())
   // Personal Info
   fullName          String
-  identification    Int                @unique
+  identification    Int
+  /** Solo clientes activos (no eliminados): evita duplicar documento. Null si deletedAt != null. */
+  activeIdentificationKey String? @unique
   maritalStatus     MaritalStatus?     // Opcional al crear
   nationality       String
   dateOfBirth       DateTime
@@ -140,7 +142,9 @@ model Client {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
+
   @@index([managedByUserId])
+  @@index([identification])
 }
 
 model ReferenceContact {
@@ -193,8 +197,11 @@ model Loan {
   clientId             String
   loanNumber           String           @unique
   // Loan Details
+  /// Inicio del cronograma (1.ª cuota). Coincide con firstPaymentDate al crear/ajustar.
   startDate            DateTime
   endDate              DateTime
+  /// Desembolso / firma; puede ser anterior al inicio de cobros.
+  disbursementDate     DateTime?
   totalAmount          Float
   installments         Int              // Número total de cuotas
   remainingInstallments Int             // Cuotas pendientes
@@ -209,6 +216,8 @@ model Loan {
   status               LoanStatus       @default(PENDING)
   
   // Payment Tracking
+  /// Primer vencimiento legal (cuota 1). Legacy: null → usar nextPaymentDate.
+  firstPaymentDate     DateTime?
   lastPaymentDate      DateTime?
   nextPaymentDate      DateTime?        // Fecha próximo pago
   payments             Payment[]        // Historial de pagos

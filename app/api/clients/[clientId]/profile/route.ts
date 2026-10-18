@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { loanNotCancelledWhere } from "@/lib/loan-filters";
 
 interface ClientSegment {
   riskLevel: "bajo" | "medio" | "alto";
@@ -292,6 +293,7 @@ export async function GET(
       select: {
         monthlyIncome: true,
         loans: {
+          where: loanNotCancelledWhere,
           select: {
             status: true,
             startDate: true,

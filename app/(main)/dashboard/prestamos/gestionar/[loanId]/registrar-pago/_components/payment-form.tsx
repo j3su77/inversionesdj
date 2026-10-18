@@ -31,7 +31,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn, formatCurrency } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loan, InterestType, LoanPaymentDay, Payment } from "@prisma/client";
-import { getNextDateFromPaymentCycle } from "@/lib/loan-payment-days";
+import {
+  getLoanDisbursementDate,
+  getNextDateFromPaymentCycleOrdered,
+} from "@/lib/loan-payment-days";
 import { FormattedInput } from "@/components/ui/formatted-input";
 import {
   // PaymentAccountSelector,
@@ -99,7 +102,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
     const normalizedPaymentDate = normalizeDate(paymentDate);
     const referenceDate = lastPayment 
       ? normalizeDate(lastPayment.paymentDate)
-      : normalizeDate(loan.startDate);
+      : normalizeDate(getLoanDisbursementDate(loan));
     
     // Calcular días para el cálculo de intereses
     // Método 30/360: Para préstamos mensuales y trimestrales, siempre usar 30 días por mes
@@ -379,7 +382,7 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
   const calculateAndSetNextPaymentDate = async (paymentDate: Date) => {
   
 
-    const fromCycle = getNextDateFromPaymentCycle(
+    const fromCycle = getNextDateFromPaymentCycleOrdered(
       paymentDate,
       cycleDayNumbers,
       loan.paymentFrequency

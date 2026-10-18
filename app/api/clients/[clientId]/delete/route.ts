@@ -87,6 +87,7 @@ export async function POST(
       where: { id: clientId },
       data: {
         deletedAt: new Date(),
+        activeIdentificationKey: null,
         status: "INACTIVE",
         notes: `Eliminado por ${user.username}: ${reason.trim()}`,
       },

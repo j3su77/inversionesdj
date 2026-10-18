@@ -11,6 +11,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Client, Loan, LoanStatus } from "@prisma/client";
 import Link from "next/link";
 import { DeleteClientDialog } from "./delete-client-dialog";
+import { ClientCreditHistoryPopover } from "./client-credit-history-popover";
 
 export function createColumnsClient(
   onDeleted?: () => void
@@ -30,6 +31,9 @@ export function createColumnsClient(
         </Button>
       );
     },
+    cell: ({ row }) => (
+      <ClientCreditHistoryPopover client={row.original} />
+    ),
   },
   {
     accessorKey: "identification",

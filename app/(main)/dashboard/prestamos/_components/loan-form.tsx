@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { format } from "date-fns";
+import { format, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -42,18 +42,24 @@ import {
   PaymentFrequency,
   // Account,
 } from "@prisma/client";
-import {} from // AccountSelector,
-// AccountSelection,
-"@/components/ui/account-selector";
+import { } from // AccountSelector,
+  // AccountSelection,
+  "@/components/ui/account-selector";
 // import { getAccounts } from "@/actions/accounts";
 import { ChangeFrequencyForm } from "./change-frequency-form";
 import { ChangeNextPaymentDateForm } from "./change-next-payment-date-form";
 import { getManagers, type ManagerUser } from "@/actions/users";
 import { ProductInfoModal } from "./product-info-modal";
+import { CommercialDayPicker } from "@/components/commercial-day-picker";
 import { Package, Pencil, CalendarDays } from "lucide-react";
 import {
+  applyPaymentDaySlotChange,
   frequencyUsesPaymentDayConfig,
+  getMinCommercialDayForPaymentSlot,
   getPaymentDaySlotsForFrequency,
+  parsePaymentDaySlotValue,
+  suggestFirstPaymentDate,
+  validatePaymentDaysForFrequency,
 } from "@/lib/loan-payment-days";
 
 interface LoanFormProps {
@@ -79,6 +85,9 @@ const formSchema = z.object({
   interestType: z.nativeEnum(InterestType),
   startDate: z.date({
     required_error: "La fecha de inicio es requerida",
+  }),
+  firstPaymentDate: z.date({
+    required_error: "La fecha del primer pago es requerida",
   }),
   paymentFrequency: z.nativeEnum(PaymentFrequency),
   notes: z.string().optional().nullable(),
@@ -146,6 +155,7 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
   const [managers, setManagers] = useState<ManagerUser[]>([]);
   const [productInfoModalOpen, setProductInfoModalOpen] = useState(false);
   const [paymentDayValues, setPaymentDayValues] = useState<string[]>([]);
+  const [firstPaymentTouched, setFirstPaymentTouched] = useState(false);
 
   useEffect(() => {
     getManagers().then(setManagers);
@@ -154,33 +164,33 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
   const loanCoDebtor = (loan as Loan & { coDebtor?: unknown })?.coDebtor;
   const initialCoDebtor: FormValues["coDebtor"] =
     loanCoDebtor != null &&
-    typeof loanCoDebtor === "object" &&
-    !Array.isArray(loanCoDebtor)
+      typeof loanCoDebtor === "object" &&
+      !Array.isArray(loanCoDebtor)
       ? {
-          fullName: (loanCoDebtor as { fullName?: string }).fullName ?? null,
-          identification:
-            (loanCoDebtor as { identification?: string }).identification ??
-            null,
-          position: (loanCoDebtor as { position?: string }).position ?? null,
-          phone: (loanCoDebtor as { phone?: string }).phone ?? null,
-        }
+        fullName: (loanCoDebtor as { fullName?: string }).fullName ?? null,
+        identification:
+          (loanCoDebtor as { identification?: string }).identification ??
+          null,
+        position: (loanCoDebtor as { position?: string }).position ?? null,
+        phone: (loanCoDebtor as { phone?: string }).phone ?? null,
+      }
       : null;
 
   const loanProductInfo = (loan as Loan & { productInfo?: unknown })
     ?.productInfo;
   const initialProductInfo: FormValues["productInfo"] =
     loanProductInfo != null &&
-    typeof loanProductInfo === "object" &&
-    !Array.isArray(loanProductInfo)
+      typeof loanProductInfo === "object" &&
+      !Array.isArray(loanProductInfo)
       ? {
-          productName:
-            (loanProductInfo as { productName?: string }).productName ?? null,
-          supplierName:
-            (loanProductInfo as { supplierName?: string }).supplierName ?? null,
-          cost: (loanProductInfo as { cost?: number }).cost ?? null,
-          paymentDate:
-            (loanProductInfo as { paymentDate?: string }).paymentDate ?? null,
-        }
+        productName:
+          (loanProductInfo as { productName?: string }).productName ?? null,
+        supplierName:
+          (loanProductInfo as { supplierName?: string }).supplierName ?? null,
+        cost: (loanProductInfo as { cost?: number }).cost ?? null,
+        paymentDate:
+          (loanProductInfo as { paymentDate?: string }).paymentDate ?? null,
+      }
       : null;
 
   const form = useForm<FormValues>({
@@ -190,7 +200,14 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
       installments: loan?.installments || 0,
       interestRate: loan?.interestRate || 0,
       interestType: loan?.interestType || "DECREASING",
-      startDate: loan?.startDate || new Date(),
+      startDate:
+        (loan as Loan & { disbursementDate?: Date | null })?.disbursementDate ??
+        loan?.startDate ??
+        new Date(),
+      firstPaymentDate:
+        (loan as Loan & { firstPaymentDate?: Date | null })?.firstPaymentDate ||
+        loan?.nextPaymentDate ||
+        new Date(),
       paymentFrequency: loan?.paymentFrequency || "MONTHLY",
       notes: loan?.notes || "",
       coDebtor: initialCoDebtor,
@@ -220,7 +237,44 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
     if (isEdit) return;
     const slots = getPaymentDaySlotsForFrequency(currentFrequency);
     setPaymentDayValues(Array.from({ length: slots }, () => ""));
+    setFirstPaymentTouched(false);
   }, [currentFrequency, isEdit]);
+
+  const watchedStartDate = form.watch("startDate");
+
+  // Sugerir primer pago cuando cambian inicio, frecuencia o días (si el usuario no lo editó)
+  useEffect(() => {
+    if (isEdit || firstPaymentTouched) return;
+    const start = watchedStartDate;
+    if (!start) return;
+
+    let parsedDays: number[] = [];
+    if (frequencyUsesPaymentDayConfig(currentFrequency)) {
+      const slots = getPaymentDaySlotsForFrequency(currentFrequency);
+      parsedDays = [];
+      for (let i = 0; i < slots; i++) {
+        const raw = paymentDayValues[i]?.trim() ?? "";
+        if (raw === "") return;
+        const n = Number.parseInt(raw, 10);
+        if (Number.isNaN(n)) return;
+        parsedDays.push(n);
+      }
+    }
+
+    const suggested = suggestFirstPaymentDate(
+      start,
+      currentFrequency,
+      parsedDays
+    );
+    form.setValue("firstPaymentDate", suggested, { shouldValidate: true });
+  }, [
+    isEdit,
+    firstPaymentTouched,
+    watchedStartDate,
+    currentFrequency,
+    paymentDayValues,
+    form,
+  ]);
 
   const { isSubmitting, isValid } = form.formState;
   // const totalAmount = form.watch("totalAmount");
@@ -275,6 +329,14 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
             }
             parsedPaymentDays.push(n);
           }
+          const dayValidation = validatePaymentDaysForFrequency(
+            values.paymentFrequency,
+            parsedPaymentDays,
+          );
+          if (!dayValidation.ok) {
+            toast.error(dayValidation.message);
+            return;
+          }
         }
 
         const response = await fetch("/api/loans", {
@@ -292,7 +354,7 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
         }
 
         const data = await response.json();
-    
+
         router.push(`/dashboard/prestamos/gestionar/${data.id}`);
         toast.success("Préstamo creado correctamente");
       }
@@ -403,7 +465,7 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
               name="startDate"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Fecha de Inicio</FormLabel>
+                  <FormLabel>Fecha de inicio (desembolso)</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -448,106 +510,193 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
                 const displayedFrequency =
                   field.value ?? loan?.paymentFrequency ?? "MONTHLY";
                 return (
-                <FormItem>
-                  <FormLabel>Frecuencia de Pago</FormLabel>
-                  {isEdit && loan ? (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
-                        <div>
-                          <p className="font-medium">
-                            {
-                              paymentFrequencyOptions.find(
-                                (opt) => opt.value === displayedFrequency,
-                              )?.label
+                  <FormItem>
+                    <FormLabel>Frecuencia de Pago</FormLabel>
+                    {isEdit && loan ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
+                          <div>
+                            <p className="font-medium">
+                              {
+                                paymentFrequencyOptions.find(
+                                  (opt) => opt.value === displayedFrequency,
+                                )?.label
+                              }
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              Frecuencia actual de pago
+                            </p>
+                          </div>
+                          <ChangeFrequencyForm
+                            loan={loan}
+                            onFrequencyApplied={(newFrequency) => {
+                              form.setValue("paymentFrequency", newFrequency, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              });
+                            }}
+                            onSuccess={() => {
+                              window.location.reload();
+                            }}
+                            trigger={
+                              <Button variant="outline" size="sm">
+                                Cambiar
+                              </Button>
                             }
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Frecuencia actual de pago
-                          </p>
+                          />
                         </div>
-                        <ChangeFrequencyForm
-                          loan={loan}
-                          onFrequencyApplied={(newFrequency) => {
-                            form.setValue("paymentFrequency", newFrequency, {
-                              shouldDirty: true,
-                              shouldValidate: true,
-                            });
-                          }}
-                          onSuccess={() => {
-                            window.location.reload();
-                          }}
-                          trigger={
-                            <Button variant="outline" size="sm">
-                              Cambiar
-                            </Button>
-                          }
-                        />
                       </div>
-                    </div>
-                  ) : (
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccione la frecuencia" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {paymentFrequencyOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  <FormMessage />
-                </FormItem>
+                    ) : (
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccione la frecuencia" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {paymentFrequencyOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <FormMessage />
+                  </FormItem>
                 );
               }}
             />
 
-            {!isEdit && frequencyUsesPaymentDayConfig(currentFrequency) && (
+            {!isEdit && (
               <div className="md:col-span-2">
                 <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
                   <div className="flex items-center gap-2">
                     <CalendarDays className="h-4 w-4 text-muted-foreground" />
                     <p className="font-medium text-sm">Días de pago</p>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Ingresa los días del mes comercial (1–30) en los que se realizará el cobro. Se repiten en cada ciclo.
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {Array.from(
-                      { length: getPaymentDaySlotsForFrequency(currentFrequency) },
-                      (_, i) => (
-                        <div key={i} className="space-y-1">
-                          <label
-                            htmlFor={`payment-day-new-${i}`}
-                            className="text-sm font-medium leading-none"
-                          >
-                            Día {i + 1}
-                          </label>
-                          <Input
-                            id={`payment-day-new-${i}`}
-                            type="number"
-                            min={1}
-                            max={30}
-                            inputMode="numeric"
-                            placeholder="1–30"
-                            value={paymentDayValues[i] ?? ""}
-                            onChange={(ev) => {
-                              const next = [...paymentDayValues];
-                              next[i] = ev.target.value;
-                              setPaymentDayValues(next);
-                            }}
-                          />
-                        </div>
-                      ),
+
+                  <FormField
+                    control={form.control}
+                    name="firstPaymentDate"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col max-w-md">
+                        <FormLabel>Fecha del primer pago</FormLabel>
+                        <p className="text-xs text-muted-foreground">
+                          Primer vencimiento legal. Puede ser en un mes distinto
+                          al desembolso.
+                        </p>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground",
+                                )}
+                                type="button"
+                              >
+                                {field.value ? (
+                                  format(field.value, "PPP", { locale: es })
+                                ) : (
+                                  <span>Seleccione la fecha</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={(date) => {
+                                setFirstPaymentTouched(true);
+                                field.onChange(date);
+                              }}
+                              disabled={(date) =>
+                                date <
+                                startOfDay(form.getValues("startDate"))
+                              }
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                  </div>
+                  />
+
+                  {frequencyUsesPaymentDayConfig(currentFrequency) && (
+                    <>
+                      <p className="text-sm text-muted-foreground">
+                        Elige los días del mes comercial (1–30) en el calendario.
+
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
+                        {Array.from(
+                          {
+                            length:
+                              getPaymentDaySlotsForFrequency(currentFrequency),
+                          },
+                          (_, i) => {
+                            const selectedOthers = paymentDayValues
+                              .map((v, j) =>
+                                j !== i && v.trim() !== ""
+                                  ? Number.parseInt(v, 10)
+                                  : null,
+                              )
+                              .filter(
+                                (n): n is number =>
+                                  n != null && !Number.isNaN(n),
+                              );
+                            const value = parsePaymentDaySlotValue(
+                              paymentDayValues[i],
+                            );
+                            const minDay = getMinCommercialDayForPaymentSlot(
+                              paymentDayValues,
+                              i,
+                            );
+                            const previousFilled =
+                              i === 0 ||
+                              parsePaymentDaySlotValue(
+                                paymentDayValues[i - 1],
+                              ) != null;
+
+                            return (
+                              <div key={i} className="space-y-1">
+                                <label
+                                  htmlFor={`payment-day-new-${i}`}
+                                  className="text-sm font-medium leading-none"
+                                >
+                                  Día {i + 1}
+                                </label>
+                                <CommercialDayPicker
+                                  id={`payment-day-new-${i}`}
+                                  value={value}
+                                  excludedDays={selectedOthers}
+                                  minDay={minDay}
+                                  disabled={!previousFilled}
+                                  onChange={(day) => {
+                                    setPaymentDayValues(
+                                      applyPaymentDaySlotChange(
+                                        paymentDayValues,
+                                        i,
+                                        day,
+                                      ),
+                                    );
+                                  }}
+                                />
+                              </div>
+                            );
+                          },
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -562,8 +711,8 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
                     <p className="font-medium">
                       {loan.nextPaymentDate
                         ? format(new Date(loan.nextPaymentDate), "PPP", {
-                            locale: es,
-                          })
+                          locale: es,
+                        })
                         : "Sin fecha definida"}
                     </p>
                   </div>
@@ -694,9 +843,9 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
               fecha de pago.
             </p>
             {form.watch("productInfo")?.productName ||
-            form.watch("productInfo")?.supplierName ||
-            form.watch("productInfo")?.cost != null ||
-            form.watch("productInfo")?.paymentDate ? (
+              form.watch("productInfo")?.supplierName ||
+              form.watch("productInfo")?.cost != null ||
+              form.watch("productInfo")?.paymentDate ? (
               <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                   {form.watch("productInfo")?.productName && (
@@ -762,14 +911,14 @@ export function LoanForm({ client, loan, disabled }: LoanFormProps) {
               initialData={
                 form.watch("productInfo")
                   ? {
-                      productName:
-                        form.watch("productInfo")?.productName ?? null,
-                      supplierName:
-                        form.watch("productInfo")?.supplierName ?? null,
-                      cost: form.watch("productInfo")?.cost ?? null,
-                      paymentDate:
-                        form.watch("productInfo")?.paymentDate ?? null,
-                    }
+                    productName:
+                      form.watch("productInfo")?.productName ?? null,
+                    supplierName:
+                      form.watch("productInfo")?.supplierName ?? null,
+                    cost: form.watch("productInfo")?.cost ?? null,
+                    paymentDate:
+                      form.watch("productInfo")?.paymentDate ?? null,
+                  }
                   : null
               }
               onSave={(data) => {

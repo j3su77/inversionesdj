@@ -2,6 +2,13 @@ import { authOptions } from "@/lib/auth-options";
 import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
+import {
+  IDENTIFICATION_TAKEN_MESSAGE,
+  isIdentificationAvailableForUpdate,
+  isPrismaUniqueViolation,
+  activeIdentificationKey,
+  parseClientIdentification,
+} from "@/lib/client-identification";
 
 export async function PATCH(
   req: Request,
@@ -38,7 +45,21 @@ export async function PATCH(
     const data: Record<string, unknown> = {};
 
     if (fullName != null) data.fullName = fullName;
-    if (identification != null) data.identification = Number(identification);
+    if (identification != null) {
+      const parsedId = parseClientIdentification(identification);
+      if (parsedId == null) {
+        return new NextResponse("Identificación inválida", { status: 400 });
+      }
+      const available = await isIdentificationAvailableForUpdate(
+        parsedId,
+        clientId,
+      );
+      if (!available) {
+        return new NextResponse(IDENTIFICATION_TAKEN_MESSAGE, { status: 400 });
+      }
+      data.identification = parsedId;
+      data.activeIdentificationKey = activeIdentificationKey(parsedId);
+    }
     if (address !== undefined) data.address = address || null;
     if (phone !== undefined) data.phone = phone || null;
     if (cellphone !== undefined) data.cellphone = cellphone || null;
@@ -72,6 +93,9 @@ export async function PATCH(
     return NextResponse.json(client);
   } catch (error) {
     console.error("[CLIENT-PATCH]", error);
+    if (isPrismaUniqueViolation(error)) {
+      return new NextResponse(IDENTIFICATION_TAKEN_MESSAGE, { status: 400 });
+    }
     return new NextResponse("Internal Error", { status: 500 });
   }
 }

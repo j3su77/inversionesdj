@@ -12,6 +12,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { PaymentsList } from "./_components/payments-list";
 import { HandleInfoLoan } from "./_components/handle-info-loan";
 import { LoanPaymentCard } from "@/components/loan-payment-card";
+import { CompleteLoanByAgreementDialog } from "./_components/complete-loan-by-agreement-dialog";
 
 async function GestionarPrestamo({ params }: { params: Promise<{ loanId: string }> }) {
   const { loanId } = await params;
@@ -75,15 +76,18 @@ async function GestionarPrestamo({ params }: { params: Promise<{ loanId: string 
       </div>
       <div className="flex justify-between items-center">
         <TitlePage text="Gestionar Préstamo" icon={CreditCard} />
-        <div className="space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
           {loan.status === "PENDING" && <ApproveButton loanId={loan.id} />}
           {loan.status === "ACTIVE" && (
-            <Link
-              className={cn(buttonVariants({className: "px-8 py-6 text-xl"}))}
-              href={`/dashboard/prestamos/gestionar/${loan.id}/registrar-pago`}
-            >
-              Registrar Pago
-            </Link>
+            <>
+             
+              <Link
+                className={cn(buttonVariants({ className: "px-8 py-6 text-xl" }))}
+                href={`/dashboard/prestamos/gestionar/${loan.id}/registrar-pago`}
+              >
+                Registrar Pago
+              </Link>
+            </>
           )}
         </div>
       </div>
@@ -100,6 +104,7 @@ async function GestionarPrestamo({ params }: { params: Promise<{ loanId: string 
           <PaymentsList payments={loan.payments} loan={loan} />
         </TabsContent>
       </Tabs>
+      <CompleteLoanByAgreementDialog loan={loan} />
     </div>
   );
 }

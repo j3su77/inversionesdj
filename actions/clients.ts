@@ -1,12 +1,20 @@
 "use server";
 import { db } from "@/lib/db";
 import { Prisma, Client, ClientStatus, LoanStatus } from "@prisma/client";
+import { loanNotCancelledWhere } from "@/lib/loan-filters";
+import {
+    IDENTIFICATION_TAKEN_MESSAGE,
+    isIdentificationAvailableForNewClient,
+    isIdentificationAvailableForUpdate,
+    parseClientIdentification,
+} from "@/lib/client-identification";
 
 export const getClientById = async (id: string): Promise<Client | null> => {
     return await db.client.findUnique({
         where: { id },
         include: {
             loans: {
+                where: loanNotCancelledWhere,
                 orderBy: {
                     createdAt: 'desc'
                 }
@@ -45,6 +53,7 @@ export const getClientBySearch = async (query: string): Promise<Client[]> => {
         },
         include: {
             loans: {
+                where: loanNotCancelledWhere,
                 orderBy: {
                     createdAt: 'desc'
                 }
@@ -62,20 +71,16 @@ export const checkClientIdentification = async (
     identification: number | string,
     excludeClientId?: string | null
 ): Promise<{ available: boolean; message?: string }> => {
-    const num = typeof identification === "string" ? parseInt(identification, 10) : identification;
-    if (isNaN(num) || num < 1) {
+    const num = parseClientIdentification(identification);
+    if (num == null) {
         return { available: true };
     }
-    const existing = await db.client.findFirst({
-        where: {
-            identification: num,
-            deletedAt: null,
-            ...(excludeClientId ? { id: { not: excludeClientId } } : {}),
-        },
-    });
-    return existing
-        ? { available: false, message: "Número de documento ya registrado" }
-        : { available: true };
+    const available = excludeClientId
+        ? await isIdentificationAvailableForUpdate(num, excludeClientId)
+        : await isIdentificationAvailableForNewClient(num);
+    return available
+        ? { available: true }
+        : { available: false, message: IDENTIFICATION_TAKEN_MESSAGE };
 };
 
 export type ClientStatusFilter = "active" | "inactive" | "blocked" | "all";
@@ -108,23 +113,25 @@ function buildClientWhereForStatus(
                         {
                             loans: {
                                 some: {
-                                    createdAt: { gte: oneYearAgo }
-                                }
-                            }
+                                    ...loanNotCancelledWhere,
+                                    createdAt: { gte: oneYearAgo },
+                                },
+                            },
                         },
                         {
                             AND: [
                                 { createdAt: { gte: oneYearAgo } },
                                 {
                                     OR: [
-                                        { loans: { none: {} } },
+                                        { loans: { none: loanNotCancelledWhere } },
                                         {
                                             loans: {
                                                 every: {
-                                                    createdAt: { lt: oneYearAgo }
-                                                }
-                                            }
-                                        }
+                                                    ...loanNotCancelledWhere,
+                                                    createdAt: { lt: oneYearAgo },
+                                                },
+                                            },
+                                        },
                                     ]
                                 }
                             ]
@@ -143,18 +150,26 @@ function buildClientWhereForStatus(
                 {
                     OR: [
                         {
-                            loans: { none: {} }
+                            loans: { none: loanNotCancelledWhere },
                         },
                         {
                             loans: {
                                 every: {
                                     AND: [
+                                        loanNotCancelledWhere,
                                         { createdAt: { lt: oneYearAgo } },
-                                        { status: { notIn: [LoanStatus.ACTIVE, LoanStatus.PENDING] } }
-                                    ]
-                                }
-                            }
-                        }
+                                        {
+                                            status: {
+                                                notIn: [
+                                                    LoanStatus.ACTIVE,
+                                                    LoanStatus.PENDING,
+                                                ],
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        },
                     ]
                 }
             ];
@@ -212,6 +227,7 @@ export const getClientsByStatus = async (
         where: baseWhere,
         include: {
             loans: {
+                where: loanNotCancelledWhere,
                 orderBy: {
                     createdAt: 'desc'
                 },
@@ -226,7 +242,7 @@ export const getClientsByStatus = async (
             },
             _count: {
                 select: {
-                    loans: true
+                    loans: { where: loanNotCancelledWhere },
                 }
             }
         },
