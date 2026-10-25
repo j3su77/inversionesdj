@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/sidebar";
 import { MainLogo } from "./main-logo";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
 import { Separator } from "./ui/separator";
 import {
   HandCoins,
@@ -55,7 +57,16 @@ const data = {
   ],
 };
 
+function isNavItemActive(pathname: string, url: string) {
+  if (url === "/dashboard") {
+    return pathname === "/dashboard";
+  }
+  return pathname === url || pathname.startsWith(`${url}/`);
+}
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const pathname = usePathname();
+
   return (
     <Sidebar variant="floating" {...props}>
       <SidebarHeader>
@@ -76,12 +87,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <SidebarGroup>
           <SidebarMenu className="gap-2">
-            {data.navMain.map((item) => (
+            {data.navMain.map((item) => {
+              const active = isNavItemActive(pathname, item.url);
+              return (
               <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild>
-                  <Link href={item.url} className="font-bold text-primary">
+                <SidebarMenuButton asChild isActive={active}>
+                  <Link
+                    href={item.url}
+                    className={cn(active && "font-semibold")}
+                  >
                     {item.icon && (
-                      <item.icon className="w-8 h-8 text-primary" />
+                      <item.icon
+                        className={cn(
+                          "w-8 h-8 shrink-0",
+                          active ? "text-primary" : "text-muted-foreground"
+                        )}
+                      />
                     )}{" "}
                     {item.title}
                   </Link>
@@ -104,7 +125,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   </SidebarMenuSub>
                 ) : null} */}
               </SidebarMenuItem>
-            ))}
+            );
+            })}
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
