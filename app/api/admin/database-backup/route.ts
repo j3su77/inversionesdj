@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import bcrypt from "bcryptjs";
-import { format } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
+import { APP_TIMEZONE } from "@/lib/timezone";
 import { Role } from "@prisma/client";
 
 import { authOptions } from "@/lib/auth-options";
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
     const params = parseMysqlDatabaseUrl(databaseUrl);
     const dump = await createMysqlDump(params);
 
-    const filename = `inversiones-dj-${params.database}-${format(new Date(), "yyyy-MM-dd-HHmm")}.sql`;
+    const filename = `inversiones-dj-${params.database}-${formatInTimeZone(new Date(), APP_TIMEZONE, "yyyy-MM-dd-HHmm")}.sql`;
 
     return new NextResponse(new Uint8Array(dump), {
       status: 200,

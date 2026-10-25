@@ -22,6 +22,8 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         PORT: 4000,
+        TZ: "America/Bogota",
+        APP_TIMEZONE: "America/Bogota",
       },
 
       error_file: "/home/deploy/apps/logs/err.log",

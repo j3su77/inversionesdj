@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { startOfDay } from "date-fns";
+import { startOfAppDay } from "@/lib/timezone";
 import {
   frequencyUsesPaymentDayConfig,
   validatePaymentDaysForFrequency,
@@ -67,7 +67,7 @@ export async function updateLoanPaymentDays(
         };
       }
 
-      normalizedFirstPayment = startOfDay(new Date(firstPaymentDateRaw));
+      normalizedFirstPayment = startOfAppDay(new Date(firstPaymentDateRaw));
       if (Number.isNaN(normalizedFirstPayment.getTime())) {
         return { ok: false as const, error: "Fecha del primer pago inválida." };
       }
@@ -90,7 +90,7 @@ export async function updateLoanPaymentDays(
       loan.startDate;
 
     const newEndDate = getLastInstallmentDate(
-      startOfDay(scheduleAnchor),
+      startOfAppDay(scheduleAnchor),
       loan.installments,
       loan.paymentFrequency,
       days,

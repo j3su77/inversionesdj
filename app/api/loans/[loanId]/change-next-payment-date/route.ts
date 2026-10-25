@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createLoanAuditLog } from "@/lib/loan-audit";
-import { startOfDay } from "date-fns";
+import { startOfAppDay } from "@/lib/timezone";
 
 export async function POST(
   req: Request,
@@ -56,7 +56,7 @@ export async function POST(
       );
     }
 
-    const newDate = startOfDay(parsed);
+    const newDate = startOfAppDay(parsed);
 
     const updated = await prisma.loan.update({
       where: { id: loanId },

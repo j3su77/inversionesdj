@@ -1,5 +1,6 @@
 import { PaymentFrequency } from "@prisma/client";
-import { addDays, addMonths, addWeeks, endOfDay, startOfDay } from "date-fns";
+import { addDays, addMonths, addWeeks } from "date-fns";
+import { endOfAppDay, getAppCalendarDay, startOfAppDay } from "@/lib/timezone";
 
 /**
  * Primera fecha calendario estrictamente posterior a `fromDate` cuyo día comercial
@@ -12,12 +13,12 @@ export function getNextDateFromPaymentCycle(
   cycleDays: number[],
   frequency: PaymentFrequency
 ): Date | null {
-  const start = startOfDay(fromDate);
+  const start = startOfAppDay(fromDate);
 
   if (frequency === "DAILY") {
     const d = new Date(start);
     d.setDate(d.getDate() + 1);
-    return startOfDay(d);
+    return startOfAppDay(d);
   }
 
   const unique = [
@@ -37,7 +38,7 @@ export function getNextDateFromPaymentCycle(
 
   for (let i = 0; i < 120; i++) {
     if (unique.includes(getCommercialDayOfMonth(cursor))) {
-      return startOfDay(cursor);
+      return startOfAppDay(cursor);
     }
     cursor.setDate(cursor.getDate() + 1);
   }
@@ -50,7 +51,7 @@ export function getNextDateFromPaymentCycle(
  * Los días 31 se alinean con 30, igual que en el resto de la app.
  */
 export function getCommercialDayOfMonth(date: Date): number {
-  const d = date.getDate();
+  const d = getAppCalendarDay(date);
   return d > 30 ? 30 : d;
 }
 
@@ -82,8 +83,8 @@ export function isLoanDueToday(
     return true;
   }
 
-  const dayStart = startOfDay(today);
-  const dayEnd = endOfDay(today);
+  const dayStart = startOfAppDay(today);
+  const dayEnd = endOfAppDay(today);
 
   if (loan.nextPaymentDate) {
     const npd = new Date(loan.nextPaymentDate);
@@ -233,9 +234,9 @@ export function getNextDateFromPaymentCycleOrdered(
   frequency: PaymentFrequency
 ): Date | null {
   if (frequency === "DAILY") {
-    const d = new Date(startOfDay(fromDate));
+    const d = new Date(startOfAppDay(fromDate));
     d.setDate(d.getDate() + 1);
-    return startOfDay(d);
+    return startOfAppDay(d);
   }
 
   const days = orderedCycleDays.filter(
@@ -255,12 +256,12 @@ export function getNextDateFromPaymentCycleOrdered(
   }
 
   const nextDayInCycle = days[(idx + 1) % days.length];
-  const cursor = new Date(startOfDay(fromDate));
+  const cursor = new Date(startOfAppDay(fromDate));
   cursor.setDate(cursor.getDate() + 1);
 
   for (let i = 0; i < 120; i++) {
     if (getCommercialDayOfMonth(cursor) === nextDayInCycle) {
-      return startOfDay(cursor);
+      return startOfAppDay(cursor);
     }
     cursor.setDate(cursor.getDate() + 1);
   }
@@ -274,12 +275,12 @@ export function advanceInstallmentDate(
   frequency: PaymentFrequency,
   orderedCycleDays: number[]
 ): Date {
-  const from = startOfDay(fromDate);
+  const from = startOfAppDay(fromDate);
 
   if (frequency === "DAILY") {
     const d = new Date(from);
     d.setDate(d.getDate() + 1);
-    return startOfDay(d);
+    return startOfAppDay(d);
   }
 
   if (orderedCycleDays.length > 0) {
@@ -295,13 +296,13 @@ export function advanceInstallmentDate(
 
   switch (frequency) {
     case "WEEKLY":
-      return startOfDay(addWeeks(from, 1));
+      return startOfAppDay(addWeeks(from, 1));
     case "BIWEEKLY":
-      return startOfDay(addDays(from, 15));
+      return startOfAppDay(addDays(from, 15));
     case "MONTHLY":
-      return startOfDay(addMonths(from, 1));
+      return startOfAppDay(addMonths(from, 1));
     case "QUARTERLY":
-      return startOfDay(addMonths(from, 3));
+      return startOfAppDay(addMonths(from, 3));
     default:
       return from;
   }
@@ -314,7 +315,7 @@ export function getLastInstallmentDate(
   frequency: PaymentFrequency,
   orderedCycleDays: number[]
 ): Date {
-  let current = startOfDay(firstPaymentDate);
+  let current = startOfAppDay(firstPaymentDate);
   for (let i = 1; i < installments; i++) {
     current = advanceInstallmentDate(current, frequency, orderedCycleDays);
   }
@@ -326,7 +327,7 @@ export function getLoanDisbursementDate(loan: {
   disbursementDate?: Date | null;
   startDate: Date;
 }): Date {
-  return startOfDay(
+  return startOfAppDay(
     loan.disbursementDate ? new Date(loan.disbursementDate) : loan.startDate
   );
 }
@@ -337,8 +338,8 @@ export function validateFirstPaymentDate(
   frequency: PaymentFrequency,
   paymentDays: number[]
 ): { ok: true } | { ok: false; message: string } {
-  const disbursement = startOfDay(disbursementDate);
-  const first = startOfDay(firstPaymentDate);
+  const disbursement = startOfAppDay(disbursementDate);
+  const first = startOfAppDay(firstPaymentDate);
 
   if (first < disbursement) {
     return {
@@ -374,12 +375,12 @@ export function suggestFirstPaymentDate(
   frequency: PaymentFrequency,
   paymentDays: number[]
 ): Date {
-  const start = startOfDay(startDate);
+  const start = startOfAppDay(startDate);
 
   if (frequency === "DAILY") {
     const d = new Date(start);
     d.setDate(d.getDate() + 1);
-    return startOfDay(d);
+    return startOfAppDay(d);
   }
 
   if (
@@ -398,14 +399,14 @@ export function suggestFirstPaymentDate(
 
   switch (frequency) {
     case "WEEKLY":
-      return startOfDay(addWeeks(start, 1));
+      return startOfAppDay(addWeeks(start, 1));
     case "BIWEEKLY":
-      return startOfDay(addDays(start, 15));
+      return startOfAppDay(addDays(start, 15));
     case "MONTHLY":
-      return startOfDay(addMonths(start, 1));
+      return startOfAppDay(addMonths(start, 1));
     case "QUARTERLY":
-      return startOfDay(addMonths(start, 3));
+      return startOfAppDay(addMonths(start, 3));
     default:
-      return startOfDay(addDays(start, 1));
+      return startOfAppDay(addDays(start, 1));
   }
 }

@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { format, startOfDay } from "date-fns";
+import { format } from "date-fns";
+import { startOfAppDay } from "@/lib/timezone";
 import { es } from "date-fns/locale";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -814,11 +815,11 @@ export function PaymentForm({ loan, onSuccess }: PaymentFormProps) {
                             selected={field.value}
                             onSelect={field.onChange}
                             disabled={(date) => {
-                              const d = startOfDay(date);
+                              const d = startOfAppDay(date);
                               if (paymentDateWatched) {
-                                return d <= startOfDay(paymentDateWatched);
+                                return d <= startOfAppDay(paymentDateWatched);
                               }
-                              return d < startOfDay(new Date());
+                              return d < startOfAppDay(new Date());
                             }}
                             defaultMonth={watch("nextPaymentDate")}
                           />

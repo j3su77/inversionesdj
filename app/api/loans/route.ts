@@ -8,7 +8,7 @@ import {
   getLastInstallmentDate,
   suggestFirstPaymentDate,
 } from "@/lib/loan-payment-days";
-import { startOfDay } from "date-fns";
+import { startOfAppDay } from "@/lib/timezone";
 
 // interface AccountSelection {
 //     accountId: string;
@@ -85,11 +85,11 @@ export async function POST(req: Request) {
 
     // Normalizar la fecha de inicio para evitar problemas de zona horaria
     // Asegurarse de que la fecha se interprete correctamente (solo fecha, sin hora)
-    const normalizedDisbursementDate = startOfDay(new Date(startDate));
+    const normalizedDisbursementDate = startOfAppDay(new Date(startDate));
 
     let normalizedFirstPaymentDate: Date;
     if (firstPaymentDateBody) {
-      normalizedFirstPaymentDate = startOfDay(new Date(firstPaymentDateBody));
+      normalizedFirstPaymentDate = startOfAppDay(new Date(firstPaymentDateBody));
     } else {
       normalizedFirstPaymentDate = suggestFirstPaymentDate(
         normalizedDisbursementDate,

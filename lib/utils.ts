@@ -1,7 +1,8 @@
 import { ExpenseCategory } from "@prisma/client";
 import { clsx, type ClassValue } from "clsx"
-import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { formatInTimeZone } from "date-fns-tz";
+import { APP_TIMEZONE } from "@/lib/timezone";
 import { twMerge } from "tailwind-merge"
 
 export function cn(...inputs: ClassValue[]) {
@@ -12,9 +13,12 @@ export function cn(...inputs: ClassValue[]) {
 export const formatDate = (date?: Date | null, formatStr?: string): string => {
   if (!date) return "-";
   try {
-    return format(date, formatStr ? formatStr : "dd 'de' MMMM 'de' yyyy", {
-      locale: es,
-    });
+    return formatInTimeZone(
+      date,
+      APP_TIMEZONE,
+      formatStr ? formatStr : "dd 'de' MMMM 'de' yyyy",
+      { locale: es }
+    );
   } catch {
     return "-";
   }

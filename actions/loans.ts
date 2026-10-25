@@ -1,7 +1,7 @@
 "use server";
 import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
-import { startOfDay, endOfDay } from "date-fns";
+import { endOfAppDay, startOfAppDay } from "@/lib/timezone";
 import {
   getCommercialDayOfMonth,
   isLoanDueToday,
@@ -75,8 +75,8 @@ export const getLoansByStatus = async (
          * Excluye préstamos con pago registrado hoy.
          */
         const commercialDay = getCommercialDayOfMonth(today);
-        const dayStart = startOfDay(today);
-        const dayEnd = endOfDay(today);
+        const dayStart = startOfAppDay(today);
+        const dayEnd = endOfAppDay(today);
         whereClause.AND = [
           { status: "ACTIVE" },
           {
@@ -120,7 +120,7 @@ export const getLoansByStatus = async (
           { status: "ACTIVE" },
           {
             nextPaymentDate: {
-              lt: startOfDay(today),
+              lt: startOfAppDay(today),
             },
           },
         ];
@@ -210,8 +210,8 @@ export const getLoanById = async (loanId: string) => {
 export const getLoanStats = async () => {
   try {
     const now = new Date();
-    const startOfToday = startOfDay(now);
-    const endOfToday = endOfDay(now);
+    const startOfToday = startOfAppDay(now);
+    const endOfToday = endOfAppDay(now);
 
     // Obtener todos los préstamos activos
     const activeLoans = await db.loan.findMany({

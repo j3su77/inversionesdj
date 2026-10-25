@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { format, startOfDay } from "date-fns";
+import { format } from "date-fns";
+import { startOfAppDay } from "@/lib/timezone";
 import { es } from "date-fns/locale";
 import {
   Card,
@@ -108,9 +109,9 @@ function FirstPaymentDateBlock({
             mode="single"
             selected={value}
             onSelect={(date) => {
-              if (date) onChange(startOfDay(date));
+              if (date) onChange(startOfAppDay(date));
             }}
-            disabled={(date) => date < startOfDay(disbursementDate)}
+            disabled={(date) => date < startOfAppDay(disbursementDate)}
             initialFocus
           />
         </PopoverContent>
@@ -134,7 +135,7 @@ export function LoanPaymentDaysCard({
 
   const initialFirstPayment = useMemo(
     () =>
-      startOfDay(
+      startOfAppDay(
         new Date(firstPaymentDate ?? nextPaymentDate ?? disbursementDate),
       ),
     [firstPaymentDate, nextPaymentDate, disbursementDate],

@@ -3,7 +3,8 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown, CircleDollarSign, Eye, Trash2 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { differenceInCalendarDays, startOfDay } from "date-fns";
+import { differenceInCalendarDays } from "date-fns";
+import { startOfAppDay } from "@/lib/timezone";
 
 import { Loan, LoanStatus, PaymentFrequency } from "@prisma/client";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -34,8 +35,8 @@ export function getDaysOverdueSinceNextPayment(
   nextPaymentDate: Date | string | null | undefined
 ): number {
   if (!nextPaymentDate) return 0;
-  const due = startOfDay(new Date(nextPaymentDate));
-  const today = startOfDay(new Date());
+  const due = startOfAppDay(new Date(nextPaymentDate));
+  const today = startOfAppDay(new Date());
   return Math.max(0, differenceInCalendarDays(today, due));
 }
 
