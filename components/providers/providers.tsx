@@ -5,6 +5,7 @@ import { AppSidebar } from "../app-sidebar";
 import { ClientSearch } from "@/app/(main)/dashboard/clientes/_components/client-search";
 import { Separator } from "../ui/separator";
 import { ModalLogout } from "../modal-logout";
+import { DatabaseBackupDialog } from "../database-backup-dialog";
 import { useRouter } from "next/navigation";
 import { Client } from "@prisma/client";
 
@@ -57,6 +58,7 @@ export const Providers = ({ children }: { children: React.ReactNode }) => {
                 <ClientSearch onClientSelect={selectedClient} />
               </div>
               <Separator orientation="vertical" className="mr-2 h-4" />
+              <DatabaseBackupDialog />
               <ModalLogout />
             </header>
            
